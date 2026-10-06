@@ -1,5 +1,5 @@
 import {
-  type CSSProperties,
+  type ReactNode,
   useEffect,
   useEffectEvent,
   useMemo,
@@ -35,11 +35,13 @@ import type {
 import {
   HomeWorkspaceWidgetRenderer,
   allowedWidgetRenderers,
+  isFullBleedWidget,
   suggestedWidgetTitle,
   widgetRendererLabel,
   type WorkspaceHistoryPoint,
 } from './HomeWorkspaceWidgetRenderer'
 import { TelemetryTopicBrowser, type TelemetryTopicScopeFilter } from '../TelemetryTopicBrowser'
+import { CloseIcon, GearSmallIcon, GripIcon } from '../../shell/icons'
 
 interface HomeWorkspaceCanvasProps {
   alerts: AlertItem[]
@@ -119,70 +121,35 @@ function ToolbarButton({
   title?: string
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={title}
-      className={cn(
-        'rounded-full border px-2.5 py-1.5 text-[0.64rem] font-semibold uppercase tracking-[0.14em] transition-colors',
-        active
-          ? 'border-[var(--primary)] bg-[var(--primary-soft)]/84 text-[var(--text)]'
-          : 'border-[var(--border)] bg-[var(--surface)]/82 text-[var(--text-muted)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)]',
-      )}
-    >
+    <button type="button" onClick={onClick} title={title} aria-pressed={active} className="hl-btn h-7 px-2.5 text-[12px]">
       {children}
     </button>
   )
 }
 
-function ConfigureButton({
+function FrameIconButton({
   onClick,
+  label,
+  danger = false,
+  children,
 }: {
   onClick: () => void
+  label: string
+  danger?: boolean
+  children: ReactNode
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-label="Configure widget"
-      title="Configure widget"
-      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)]/82 text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-alt)] hover:text-[var(--text)]"
+      aria-label={label}
+      title={label}
+      className={cn(
+        'inline-flex h-6 w-6 items-center justify-center rounded-[6px] text-[var(--text-faint)] transition-colors',
+        danger ? 'hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]' : 'hover:bg-[var(--surface-raised)] hover:text-[var(--text)]',
+      )}
     >
-      <svg
-        viewBox="0 0 20 20"
-        aria-hidden="true"
-        className="h-4 w-4"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-      >
-        <path
-          d="M10 3.5l1 .55 1.14-.26.74.9-.4 1.08.62 1 .98.35v1.26l-.98.35-.62 1 .4 1.08-.74.9-1.14-.26-1 .55-1-.55-1.14.26-.74-.9.4-1.08-.62-1-.98-.35V7.12l.98-.35.62-1-.4-1.08.74-.9 1.14.26 1-.55z"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <circle cx="10" cy="10" r="2.35" />
-      </svg>
-    </button>
-  )
-}
-
-function QuickRemoveButton({
-  onClick,
-}: {
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label="Remove widget"
-      title="Remove widget"
-      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--danger)_28%,var(--border)_72%)] bg-[color-mix(in_srgb,var(--danger)_14%,var(--surface)_86%)] text-[var(--danger)] transition-colors hover:bg-[color-mix(in_srgb,var(--danger)_20%,var(--surface)_80%)]"
-    >
-      <svg viewBox="0 0 20 20" aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <path d="M6.5 6.5l7 7M13.5 6.5l-7 7" strokeLinecap="round" />
-      </svg>
+      {children}
     </button>
   )
 }
@@ -203,7 +170,7 @@ function FieldLabel({
 }: {
   children: string
 }) {
-  return <div className="text-[0.62rem] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">{children}</div>
+  return <div className="hl-label">{children}</div>
 }
 
 function PanelInput({
@@ -223,7 +190,7 @@ function PanelInput({
       onChange={(event) => onChange(event.target.value)}
       list={list}
       placeholder={placeholder}
-      className="w-full rounded-[14px] border border-[var(--border)] bg-[var(--surface)]/84 px-3 py-2 text-[0.8rem] text-[var(--text)] outline-none transition-colors focus:border-[var(--primary)]"
+      className="hl-input"
     />
   )
 }
@@ -238,17 +205,53 @@ function PanelSelect<T extends string>({
   options: Array<{ id: T; label: string }>
 }) {
   return (
-    <select
-      value={value}
-      onChange={(event) => onChange(event.target.value as T)}
-      className="w-full rounded-[14px] border border-[var(--border)] bg-[var(--surface)]/84 px-3 py-2 text-[0.8rem] text-[var(--text)] outline-none transition-colors focus:border-[var(--primary)]"
-    >
+    <select value={value} onChange={(event) => onChange(event.target.value as T)} className="hl-input">
       {options.map((option) => (
         <option key={option.id} value={option.id}>
           {option.label}
         </option>
       ))}
     </select>
+  )
+}
+
+function NumberField({
+  label,
+  defaultValue,
+  onCommit,
+  min,
+  max,
+  placeholder,
+}: {
+  label: string
+  defaultValue: number | string
+  onCommit: (value: string) => void
+  min?: number
+  max?: number
+  placeholder?: string
+}) {
+  return (
+    <label className="grid gap-1.5">
+      <FieldLabel>{label}</FieldLabel>
+      <input
+        type="number"
+        min={min}
+        max={max}
+        defaultValue={defaultValue}
+        placeholder={placeholder}
+        onBlur={(event) => onCommit(event.target.value)}
+        className="hl-input font-mono"
+      />
+    </label>
+  )
+}
+
+function ConfigSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="grid gap-2.5">
+      <h4 className="hl-eyebrow">{title}</h4>
+      {children}
+    </section>
   )
 }
 
@@ -393,283 +396,165 @@ function WidgetConfigPanel({
   }
 
   return (
-    <div className="grid gap-3 rounded-[18px] border border-[var(--border)] bg-[var(--surface)]/82 px-3 py-3">
-      <div className="grid gap-3 md:grid-cols-2">
-        <label className="grid gap-2">
-          <FieldLabel>Title</FieldLabel>
-          <PanelInput value={title} onChange={(value) => onUpdateWidget(widget.id, { title: value })} />
-        </label>
-
-        {isHomeWorkspaceTopicWidget(widget) ? (
-          <label className="grid gap-2">
-            <FieldLabel>Renderer</FieldLabel>
-            <PanelSelect
-              value={widget.renderer}
-              onChange={(value) => onUpdateWidget(widget.id, { renderer: value })}
-              options={rendererOptions}
-            />
+    <div className="grid gap-5">
+      <ConfigSection title="Panel">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="grid gap-1.5">
+            <FieldLabel>Title</FieldLabel>
+            <PanelInput value={title} onChange={(value) => onUpdateWidget(widget.id, { title: value })} />
           </label>
-        ) : (
-          <div className="grid gap-2">
-            <FieldLabel>Preset</FieldLabel>
-            <div className="rounded-[14px] border border-[var(--border)] bg-[var(--surface-alt)]/82 px-3 py-2 text-[0.82rem] text-[var(--text)]">
-              {preset?.label ?? 'Preset widget'}
+
+          {isHomeWorkspaceTopicWidget(widget) ? (
+            <label className="grid gap-1.5">
+              <FieldLabel>Display as</FieldLabel>
+              <PanelSelect
+                value={widget.renderer}
+                onChange={(value) => onUpdateWidget(widget.id, { renderer: value })}
+                options={rendererOptions}
+              />
+            </label>
+          ) : (
+            <div className="grid gap-1.5">
+              <FieldLabel>Type</FieldLabel>
+              <div className="hl-input flex items-center text-[var(--text-secondary)]">{preset?.label ?? 'Preset panel'}</div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+        {!isHomeWorkspaceTopicWidget(widget) && preset?.description ? (
+          <p className="text-[11.5px] text-[var(--text-faint)]">{preset.description}</p>
+        ) : null}
+      </ConfigSection>
 
       {isHomeWorkspaceTopicWidget(widget) ? (
-        <>
-          <label className="grid gap-2">
-            <FieldLabel>Topic / Data Source</FieldLabel>
-            <PanelInput
-              value={topicKey}
-              onChange={handleTopicChange}
-              placeholder="/robot/topic/path"
-            />
-          </label>
-
-          <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-alt)]/74 px-3 py-3">
+        <ConfigSection title="Topic">
+          <PanelInput value={topicKey} onChange={handleTopicChange} placeholder="/robot/topic/path" />
+          <div className="h-[260px]">
             <TelemetryTopicBrowser
               topics={topics}
               searchQuery={topicSearchQuery}
               onSearchQueryChange={setTopicSearchQuery}
               scopeFilter={topicScopeFilter}
               onScopeFilterChange={setTopicScopeFilter}
-              maxResults={18}
-              listClassName="max-h-[320px]"
+              maxResults={40}
               emptyMessage="No live topics matched this filter."
               getAction={(candidate) => ({
-                label: candidate.key === topicKey ? 'Selected' : 'Use topic',
+                label: candidate.key === topicKey ? 'Bound' : 'Use',
                 disabled: candidate.key === topicKey,
                 onClick: () => handleTopicChange(candidate.key),
               })}
             />
           </div>
-        </>
-      ) : (
-        <div className="grid gap-3">
-          <div className="rounded-[16px] border border-[var(--border)] bg-[var(--surface-alt)]/82 px-3 py-3 text-[0.78rem] leading-6 text-[var(--text-muted)]">
-            {preset?.description ?? 'Preset widgets reuse the live dashboard panel inside the overview whiteboard.'}
+        </ConfigSection>
+      ) : null}
+
+      {isHomeWorkspacePresetWidget(widget) && widget.presetId === 'camera-stream' ? (
+        <ConfigSection title="Camera">
+          <PanelSelect
+            value={widget.config.cameraFeedId ?? '__auto__'}
+            onChange={(value) =>
+              onUpdateWidget(widget.id, {
+                presetConfig: { cameraFeedId: value === '__auto__' ? null : value },
+              })
+            }
+            options={cameraFeedOptions}
+          />
+          {resolvedCameraFeeds.length === 0 ? (
+            <p className="text-[11.5px] text-[var(--text-faint)]">
+              No live feed right now. In simulation, turn the camera on; on hardware, add a manual feed in Settings.
+            </p>
+          ) : null}
+        </ConfigSection>
+      ) : null}
+
+      {isHomeWorkspacePresetWidget(widget) && widget.presetId === 'spatial-view' ? (
+        <ConfigSection title="Goal heading">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <ToolbarButton
+              active={widget.config.spatialTargetYawDeg === null}
+              onClick={() => onUpdateWidget(widget.id, { presetConfig: { spatialTargetYawDeg: null } })}
+            >
+              Follow path
+            </ToolbarButton>
+            {([0, 90, 180, -90] as const).map((targetYawDeg) => (
+              <ToolbarButton
+                key={targetYawDeg}
+                active={widget.config.spatialTargetYawDeg === targetYawDeg}
+                onClick={() => onUpdateWidget(widget.id, { presetConfig: { spatialTargetYawDeg: targetYawDeg } })}
+              >
+                {`${targetYawDeg}°`}
+              </ToolbarButton>
+            ))}
+            <input
+              key={widget.config.spatialTargetYawDeg ?? 'auto'}
+              type="number"
+              step={5}
+              defaultValue={widget.config.spatialTargetYawDeg ?? ''}
+              placeholder="custom °"
+              onBlur={(event) => commitSpatialTargetYaw(event.target.value)}
+              className="hl-input h-7 w-[96px] font-mono"
+            />
           </div>
+          <p className="text-[11.5px] text-[var(--text-faint)]">Locks the arrival heading used by the goal preview.</p>
+        </ConfigSection>
+      ) : null}
 
-          {widget.presetId === 'camera-stream' ? (
-            <label className="grid gap-2">
-              <FieldLabel>Camera Feed</FieldLabel>
-              <PanelSelect
-                value={widget.config.cameraFeedId ?? '__auto__'}
-                onChange={(value) =>
-                  onUpdateWidget(widget.id, {
-                    presetConfig: { cameraFeedId: value === '__auto__' ? null : value },
-                  })
-                }
-                options={cameraFeedOptions}
-              />
-            </label>
-          ) : null}
-
-          {widget.presetId === 'camera-stream' && resolvedCameraFeeds.length === 0 ? (
-            <div className="rounded-[16px] border border-dashed border-[var(--border)] bg-[var(--surface)]/76 px-3 py-3 text-[0.76rem] leading-6 text-[var(--text-muted)]">
-              No live camera feed is available right now. In simulation, enable the camera button. On hardware, keep a manual feed in Settings or wait for discovery.
-            </div>
-          ) : null}
-
-          {widget.presetId === 'spatial-view' ? (
-            <div className="grid gap-3 rounded-[16px] border border-[var(--border)] bg-[var(--surface)]/72 px-3 py-3">
-              <label className="grid gap-2">
-                <FieldLabel>Target Yaw</FieldLabel>
-                <input
-                  key={widget.config.spatialTargetYawDeg ?? 'auto'}
-                  type="number"
-                  step={5}
-                  defaultValue={widget.config.spatialTargetYawDeg ?? ''}
-                  placeholder="Auto / path heading"
-                  onBlur={(event) => commitSpatialTargetYaw(event.target.value)}
-                  className="w-full rounded-[14px] border border-[var(--border)] bg-[var(--surface)]/84 px-3 py-2 text-[0.8rem] text-[var(--text)] outline-none transition-colors focus:border-[var(--primary)]"
-                />
-              </label>
-
-              <div className="flex flex-wrap gap-2">
-                <ToolbarButton
-                  active={widget.config.spatialTargetYawDeg === null}
-                  onClick={() => onUpdateWidget(widget.id, { presetConfig: { spatialTargetYawDeg: null } })}
-                >
-                  Auto
-                </ToolbarButton>
-                {([0, 90, 180, -90] as const).map((targetYawDeg) => (
-                  <ToolbarButton
-                    key={targetYawDeg}
-                    active={widget.config.spatialTargetYawDeg === targetYawDeg}
-                    onClick={() => onUpdateWidget(widget.id, { presetConfig: { spatialTargetYawDeg: targetYawDeg } })}
-                  >
-                    {`${targetYawDeg} deg`}
-                  </ToolbarButton>
-                ))}
-              </div>
-
-              <div className="text-[0.76rem] leading-6 text-[var(--text-muted)]">
-                Auto keeps following the route heading. Setting a value here locks the
-                final arrival heading for the Spatial preset and the preview target marker.
-              </div>
-            </div>
-          ) : null}
-        </div>
-      )}
-
-      <div className="grid gap-3 md:grid-cols-4">
-        <label className="grid gap-2">
-          <FieldLabel>Width</FieldLabel>
-          <input
-            type="number"
-            min={widgetMinimums.w}
-            max={widgetMaximums.w}
-            defaultValue={widget.w}
-            onBlur={(event) => commitDimension('w', event.target.value)}
-            className="rounded-[14px] border border-[var(--border)] bg-[var(--surface)]/84 px-3 py-2 text-[0.8rem] text-[var(--text)] outline-none focus:border-[var(--primary)]"
-          />
-        </label>
-
-        <label className="grid gap-2">
-          <FieldLabel>Height</FieldLabel>
-          <input
-            type="number"
-            min={widgetMinimums.h}
-            max={widgetMaximums.h}
-            defaultValue={widget.h}
-            onBlur={(event) => commitDimension('h', event.target.value)}
-            className="rounded-[14px] border border-[var(--border)] bg-[var(--surface)]/84 px-3 py-2 text-[0.8rem] text-[var(--text)] outline-none focus:border-[var(--primary)]"
-          />
-        </label>
-
-        {isHomeWorkspaceTopicWidget(widget) ? (
-          <>
-            <label className="grid gap-2">
-              <FieldLabel>Decimals</FieldLabel>
-              <input
-                type="number"
-                min={0}
-                max={4}
-                defaultValue={widget.config.decimals}
-                onBlur={(event) =>
-                  onUpdateWidget(widget.id, {
-                    config: { decimals: clampSize(Number(event.target.value) || 0, 0, 4) },
-                  })
-                }
-                className="rounded-[14px] border border-[var(--border)] bg-[var(--surface)]/84 px-3 py-2 text-[0.8rem] text-[var(--text)] outline-none focus:border-[var(--primary)]"
-              />
-            </label>
-
-            <label className="grid gap-2">
-              <FieldLabel>Units</FieldLabel>
+      {isHomeWorkspaceTopicWidget(widget) ? (
+        <ConfigSection title="Format">
+          <div className="grid grid-cols-2 gap-3">
+            <NumberField
+              label="Decimals"
+              min={0}
+              max={4}
+              defaultValue={widget.config.decimals}
+              onCommit={(value) => onUpdateWidget(widget.id, { config: { decimals: clampSize(Number(value) || 0, 0, 4) } })}
+            />
+            <label className="grid gap-1.5">
+              <FieldLabel>Unit</FieldLabel>
               <PanelInput
                 value={widget.config.units}
                 onChange={(value) => onUpdateWidget(widget.id, { config: { units: value.slice(0, 16) } })}
                 placeholder="V, mm, %"
               />
             </label>
-          </>
-        ) : null}
-      </div>
-
-      {isHomeWorkspaceTopicWidget(widget) ? (
-        <div className="flex flex-wrap items-center gap-2">
-          <ToolbarButton
-            active={widget.config.compact}
-            onClick={() => onUpdateWidget(widget.id, { config: { compact: !widget.config.compact } })}
-            title="Force a denser internal widget layout"
-          >
-            Compact Mode
-          </ToolbarButton>
-        </div>
+          </div>
+        </ConfigSection>
       ) : null}
 
       {numericTopic ? (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <label className="grid gap-2">
-            <FieldLabel>Warning Min</FieldLabel>
-            <input
-              type="number"
-              defaultValue={widget.config.warningMin ?? ''}
-              onBlur={(event) => commitNumericConfig('warningMin', event.target.value)}
-              className="rounded-[14px] border border-[var(--border)] bg-[var(--surface)]/84 px-3 py-2 text-[0.8rem] text-[var(--text)] outline-none focus:border-[var(--primary)]"
-            />
-          </label>
-          <label className="grid gap-2">
-            <FieldLabel>Warning Max</FieldLabel>
-            <input
-              type="number"
-              defaultValue={widget.config.warningMax ?? ''}
-              onBlur={(event) => commitNumericConfig('warningMax', event.target.value)}
-              className="rounded-[14px] border border-[var(--border)] bg-[var(--surface)]/84 px-3 py-2 text-[0.8rem] text-[var(--text)] outline-none focus:border-[var(--primary)]"
-            />
-          </label>
-          <label className="grid gap-2">
-            <FieldLabel>Critical Min</FieldLabel>
-            <input
-              type="number"
-              defaultValue={widget.config.criticalMin ?? ''}
-              onBlur={(event) => commitNumericConfig('criticalMin', event.target.value)}
-              className="rounded-[14px] border border-[var(--border)] bg-[var(--surface)]/84 px-3 py-2 text-[0.8rem] text-[var(--text)] outline-none focus:border-[var(--primary)]"
-            />
-          </label>
-          <label className="grid gap-2">
-            <FieldLabel>Critical Max</FieldLabel>
-            <input
-              type="number"
-              defaultValue={widget.config.criticalMax ?? ''}
-              onBlur={(event) => commitNumericConfig('criticalMax', event.target.value)}
-              className="rounded-[14px] border border-[var(--border)] bg-[var(--surface)]/84 px-3 py-2 text-[0.8rem] text-[var(--text)] outline-none focus:border-[var(--primary)]"
-            />
-          </label>
-        </div>
+        <ConfigSection title="Thresholds">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <NumberField label="Warn below" defaultValue={widget.config.warningMin ?? ''} onCommit={(value) => commitNumericConfig('warningMin', value)} />
+            <NumberField label="Warn above" defaultValue={widget.config.warningMax ?? ''} onCommit={(value) => commitNumericConfig('warningMax', value)} />
+            <NumberField label="Critical below" defaultValue={widget.config.criticalMin ?? ''} onCommit={(value) => commitNumericConfig('criticalMin', value)} />
+            <NumberField label="Critical above" defaultValue={widget.config.criticalMax ?? ''} onCommit={(value) => commitNumericConfig('criticalMax', value)} />
+          </div>
+          <p className="text-[11.5px] text-[var(--text-faint)]">
+            Values outside these limits turn amber or red. Gauge and bar use the critical limits as their range.
+          </p>
+        </ConfigSection>
       ) : null}
+
+      <ConfigSection title="Size">
+        <div className="grid grid-cols-2 gap-3">
+          <NumberField
+            label={`Width (${widgetMinimums.w}–${widgetMaximums.w} columns)`}
+            min={widgetMinimums.w}
+            max={widgetMaximums.w}
+            defaultValue={widget.w}
+            onCommit={(value) => commitDimension('w', value)}
+          />
+          <NumberField
+            label={`Height (${widgetMinimums.h}–${widgetMaximums.h} rows)`}
+            min={widgetMinimums.h}
+            max={widgetMaximums.h}
+            defaultValue={widget.h}
+            onCommit={(value) => commitDimension('h', value)}
+          />
+        </div>
+      </ConfigSection>
     </div>
   )
 }
-
-function WidgetActionPanel({
-  widget,
-  onRemove,
-}: {
-  widget: HomeWorkspaceWidget
-  onRemove: () => void
-}) {
-  return (
-    <div className="grid gap-3 rounded-[18px] border border-[var(--border)] bg-[var(--surface)]/82 px-3 py-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <FieldLabel>Widget Actions</FieldLabel>
-        <div className="text-[0.72rem] leading-6 text-[var(--text-muted)]">
-          Drag the header to move. Resize from the bottom-right corner.
-        </div>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={onRemove}
-          className="rounded-full border border-[color-mix(in_srgb,var(--danger)_24%,var(--border)_76%)] bg-[color-mix(in_srgb,var(--danger)_12%,var(--surface)_88%)] px-3 py-2 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-[var(--text)] transition-colors hover:bg-[color-mix(in_srgb,var(--danger)_18%,var(--surface)_82%)]"
-        >
-          Remove widget
-        </button>
-        <div className="text-[0.72rem] leading-6 text-[var(--text-muted)]">
-          Position {widget.x + 1},{widget.y + 1} on the board.
-        </div>
-      </div>
-    </div>
-  )
-}
-
-const WIDGET_CONFIG_MODAL_THEME: CSSProperties = {
-  '--background': '#f8fafc',
-  '--surface': '#ffffff',
-  '--surface-alt': '#f1f5f9',
-  '--border': 'rgba(148, 163, 184, 0.38)',
-  '--border-strong': 'rgba(100, 116, 139, 0.44)',
-  '--text': '#0f172a',
-  '--text-muted': '#475569',
-  '--primary-soft': 'rgba(59, 130, 246, 0.12)',
-  '--card-shadow-strong': '0 28px 90px rgba(15, 23, 42, 0.28)',
-} as CSSProperties
 
 function WidgetConfigModal({
   editMode,
@@ -717,66 +602,52 @@ function WidgetConfigModal({
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[90] flex items-center justify-center px-4 py-6" onClick={onClose}>
-      <div className="absolute inset-0 bg-[rgba(15,23,42,0.36)] backdrop-blur-[6px]" />
+    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/55 backdrop-blur-[2px]" />
 
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={`widget-config-title-${widget.id}`}
         onClick={(event) => event.stopPropagation()}
-        className="relative z-[1] flex w-full max-w-[820px] max-h-[min(84vh,860px)] flex-col overflow-hidden rounded-[28px] border shadow-[var(--card-shadow-strong)]"
-        style={WIDGET_CONFIG_MODAL_THEME}
+        className="hl-panel relative z-[1] max-h-[min(86vh,820px)] w-full max-w-[720px] bg-[var(--surface)] shadow-[var(--card-shadow-strong)]"
       >
-        <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] px-5 py-4">
-          <div className="min-w-0">
-            <div className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">
-              {isHomeWorkspacePresetWidget(widget) ? 'Preset widget' : 'Topic widget'}
-            </div>
-            <h3
-              id={`widget-config-title-${widget.id}`}
-              className="mt-1 truncate text-[1.08rem] font-semibold tracking-[-0.04em] text-[var(--text)]"
-            >
-              {widget.title}
+        <header className="flex items-center gap-3 border-b border-[var(--border)] px-4 py-3">
+          <div className="min-w-0 flex-1">
+            <h3 id={`widget-config-title-${widget.id}`} className="truncate text-[14px] font-semibold">
+              {widget.title || 'Panel settings'}
             </h3>
-            <div className="mt-2 text-[0.82rem] leading-6 text-[var(--text-muted)]">
-              Adjust binding, renderer, sizing and thresholds from one light modal instead of expanding the card.
+            <div className="truncate font-mono text-[11px] text-[var(--text-faint)]">
+              {isHomeWorkspaceTopicWidget(widget) ? widget.topicKey ?? 'no topic' : 'preset panel'}
             </div>
           </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close widget configuration"
-            className="inline-flex h-10 w-10 flex-none items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-alt)] text-[var(--text-muted)] transition-colors hover:text-[var(--text)]"
-          >
-            <svg viewBox="0 0 20 20" aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path d="M6 6l8 8M14 6l-8 8" strokeLinecap="round" />
-            </svg>
+          {editMode ? (
+            <button
+              type="button"
+              onClick={() => {
+                onRemoveWidget(widget.id)
+                onClose()
+              }}
+              className="hl-btn hl-btn-ghost text-[var(--danger)]"
+            >
+              Remove
+            </button>
+          ) : null}
+          <button type="button" onClick={onClose} className="hl-btn hl-btn-primary">
+            Done
           </button>
-        </div>
+        </header>
 
-        <div className="min-h-0 overflow-y-auto px-5 py-5">
-          <div className="grid gap-4">
-            <WidgetConfigPanel
-              key={widget.id}
-              widget={widget}
-              topic={topic}
-              topics={topics}
-              snapshot={snapshot}
-              onUpdateWidget={onUpdateWidget}
-              onResizeWidget={onResizeWidget}
-            />
-            {editMode ? (
-              <WidgetActionPanel
-                widget={widget}
-                onRemove={() => {
-                  onRemoveWidget(widget.id)
-                  onClose()
-                }}
-              />
-            ) : null}
-          </div>
+        <div className="min-h-0 overflow-y-auto px-4 py-4">
+          <WidgetConfigPanel
+            key={widget.id}
+            widget={widget}
+            topic={topic}
+            topics={topics}
+            snapshot={snapshot}
+            onUpdateWidget={onUpdateWidget}
+            onResizeWidget={onResizeWidget}
+          />
         </div>
       </div>
     </div>,
@@ -804,7 +675,6 @@ export function HomeWorkspaceCanvas({
   const [interaction, setInteraction] = useState<InteractionState | null>(null)
   const [configuredWidgetId, setConfiguredWidgetId] = useState<string | null>(null)
   const [selectedWidgetIdState, setSelectedWidgetId] = useState<string | null>(null)
-  const [hoveredWidgetId, setHoveredWidgetId] = useState<string | null>(null)
 
   const syncInteraction = (next: InteractionState | null) => {
     interactionRef.current = next
@@ -856,7 +726,7 @@ export function HomeWorkspaceCanvas({
   }, [configuredWidgetId, editMode, onRemoveWidget, selectedWidgetId])
 
   const beginInteraction = (
-    event: ReactPointerEvent<HTMLButtonElement | HTMLDivElement>,
+    event: ReactPointerEvent<HTMLElement>,
     widget: HomeWorkspaceWidget,
     kind: 'move' | 'resize',
   ) => {
@@ -985,151 +855,153 @@ export function HomeWorkspaceCanvas({
 
   return (
     <>
-      <div className="h-full min-h-0 overflow-auto pr-1">
-        <div
-          ref={gridRef}
-          className="grid min-h-[420px] min-w-0 auto-rows-[44px] gap-3"
-          style={{ gridTemplateColumns: `repeat(${HOME_WORKSPACE_GRID_COLUMNS}, minmax(0, 1fr))` }}
-          onClick={(event) => {
-            if (event.target === event.currentTarget) {
-              setSelectedWidgetId(null)
-            }
-          }}
-        >
-          {widgets.map((widget) => {
-            const previewRect =
-              interaction?.widgetId === widget.id
-                ? interaction.previewRect
-                : {
-                    x: widget.x,
-                    y: widget.y,
-                    w: widget.w,
-                    h: widget.h,
+      <div
+        ref={gridRef}
+        className="relative grid min-h-full min-w-0"
+        style={{
+          gridTemplateColumns: `repeat(${HOME_WORKSPACE_GRID_COLUMNS}, minmax(0, 1fr))`,
+          gridAutoRows: `${HOME_WORKSPACE_GRID_ROW_PX}px`,
+          gap: `${HOME_WORKSPACE_GRID_GAP_PX}px`,
+          ...(editMode
+            ? {
+                backgroundImage: 'radial-gradient(circle, var(--border-strong) 1px, transparent 1.2px)',
+                backgroundSize: `calc((100% + ${HOME_WORKSPACE_GRID_GAP_PX}px) / ${HOME_WORKSPACE_GRID_COLUMNS}) ${HOME_WORKSPACE_GRID_ROW_PX + HOME_WORKSPACE_GRID_GAP_PX}px`,
+                backgroundPosition: `-${HOME_WORKSPACE_GRID_GAP_PX / 2}px -${HOME_WORKSPACE_GRID_GAP_PX / 2}px`,
+              }
+            : null),
+        }}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) {
+            setSelectedWidgetId(null)
+          }
+        }}
+      >
+        {widgets.map((widget) => {
+          const previewRect =
+            interaction?.widgetId === widget.id
+              ? interaction.previewRect
+              : {
+                  x: widget.x,
+                  y: widget.y,
+                  w: widget.w,
+                  h: widget.h,
+                }
+          const topic = isHomeWorkspaceTopicWidget(widget) && widget.topicKey ? topicMap.get(widget.topicKey) ?? null : null
+          const history = isHomeWorkspaceTopicWidget(widget) && widget.topicKey ? historyByTopic[widget.topicKey] ?? [] : []
+          const selected = selectedWidgetId === widget.id
+          const dragging = interaction?.widgetId === widget.id
+          const fullBleed = isFullBleedWidget(widget)
+          const openConfig = () => {
+            setSelectedWidgetId(widget.id)
+            setConfiguredWidgetId(widget.id)
+          }
+
+          return (
+            <div
+              key={widget.id}
+              className={cn('min-h-0 min-w-0', dragging ? 'z-[3]' : selected ? 'z-[2]' : 'z-[1]')}
+              style={{
+                gridColumn: `${previewRect.x + 1} / span ${previewRect.w}`,
+                gridRow: `${previewRect.y + 1} / span ${previewRect.h}`,
+              }}
+            >
+              <article
+                aria-selected={editMode ? selected : undefined}
+                onClick={(event) => {
+                  if (!editMode || matchesSelectionBlockedTarget(event.target)) {
+                    return
                   }
-            const topic = isHomeWorkspaceTopicWidget(widget) && widget.topicKey ? topicMap.get(widget.topicKey) ?? null : null
-            const history = isHomeWorkspaceTopicWidget(widget) && widget.topicKey ? historyByTopic[widget.topicKey] ?? [] : []
-            const selected = selectedWidgetId === widget.id
-            const hovered = hoveredWidgetId === widget.id
-            const showQuickRemove = editMode && (selected || hovered)
 
-            return (
-              <div
-                key={widget.id}
-                className={cn('min-h-0', interaction?.widgetId === widget.id ? 'z-[3]' : selected ? 'z-[2]' : 'z-[1]')}
-                style={{
-                  gridColumn: `${previewRect.x + 1} / span ${previewRect.w}`,
-                  gridRow: `${previewRect.y + 1} / span ${previewRect.h}`,
+                  setSelectedWidgetId(widget.id)
                 }}
+                className={cn(
+                  'hl-panel group @container h-full transition-[border-color,box-shadow]',
+                  dragging
+                    ? 'border-[var(--primary)] shadow-[0_12px_32px_rgba(0,0,0,0.45)]'
+                    : selected
+                      ? 'border-[color-mix(in_srgb,var(--primary)_55%,transparent)]'
+                      : editMode
+                        ? 'border-dashed border-[var(--border-strong)]'
+                        : '',
+                )}
               >
-                <article
-                  aria-selected={editMode ? selected : undefined}
-                  onMouseEnter={() => setHoveredWidgetId(widget.id)}
-                  onMouseLeave={() => setHoveredWidgetId((current) => (current === widget.id ? null : current))}
-                  onClick={(event) => {
-                    if (!editMode || matchesSelectionBlockedTarget(event.target)) {
-                      return
-                    }
-
-                    setSelectedWidgetId(widget.id)
-                  }}
+                <header
                   className={cn(
-                    'relative flex h-full min-h-0 flex-col overflow-hidden rounded-[22px] border bg-[color-mix(in_srgb,var(--surface)_82%,var(--background)_18%)]',
-                    interaction?.widgetId === widget.id
-                      ? 'border-[var(--primary)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--primary)_32%,transparent)]'
-                      : selected
-                        ? 'border-[color-mix(in_srgb,var(--primary)_48%,var(--border)_52%)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--primary)_22%,transparent)]'
-                        : 'border-[var(--border)]',
+                    'flex h-8 shrink-0 items-center gap-1.5 border-b border-[var(--border)] pr-1.5 pl-2.5',
+                    editMode && 'cursor-grab touch-none active:cursor-grabbing',
                   )}
+                  onPointerDown={
+                    editMode
+                      ? (event) => {
+                          if (matchesSelectionBlockedTarget(event.target)) return
+                          beginInteraction(event, widget, 'move')
+                        }
+                      : undefined
+                  }
+                  title={editMode ? 'Drag to move' : undefined}
                 >
-                  <div
-                    aria-hidden="true"
-                    className="pointer-events-none absolute inset-x-0 top-0 h-16 opacity-70"
-                    style={{
-                      background:
-                        'linear-gradient(180deg, color-mix(in srgb, var(--primary) 24%, transparent) 0%, transparent 100%)',
-                    }}
-                  />
-
-                  <header className="relative z-[1] flex items-center justify-between gap-3 border-b border-[var(--border)]/72 px-3 py-3">
-                    <div
-                      className={cn(
-                        'flex min-w-0 flex-1 items-center gap-2',
-                        editMode && 'cursor-grab touch-none active:cursor-grabbing',
-                      )}
-                      onPointerDown={editMode ? (event) => beginInteraction(event, widget, 'move') : undefined}
-                      title={editMode ? 'Drag to move widget' : undefined}
-                    >
-                      {editMode ? (
-                        <svg
-                          viewBox="0 0 20 20"
-                          aria-hidden="true"
-                          className="h-4 w-4 flex-none text-[var(--text-muted)]"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.6"
-                        >
-                          <path d="M7 5.5h.01M13 5.5h.01M7 10h.01M13 10h.01M7 14.5h.01M13 14.5h.01" strokeLinecap="round" />
-                        </svg>
-                      ) : null}
-                      <div className="min-w-0">
-                        <div className="truncate text-[0.88rem] font-semibold tracking-[-0.03em] text-[var(--text)]">
-                          {widget.title}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {showQuickRemove ? (
-                        <QuickRemoveButton
-                          onClick={() => {
-                            onRemoveWidget(widget.id)
-                            setSelectedWidgetId((current) => (current === widget.id ? null : current))
-                            setHoveredWidgetId((current) => (current === widget.id ? null : current))
-                          }}
-                        />
-                      ) : null}
-                      <ConfigureButton
-                        onClick={() => {
-                          setSelectedWidgetId(widget.id)
-                          setConfiguredWidgetId(widget.id)
-                        }}
-                      />
-                    </div>
-                  </header>
-
-                  <div className="relative z-[1] flex min-h-0 flex-1 overflow-hidden px-3 py-3">
-                    <div className="min-h-0 flex-1">
-                      <HomeWorkspaceWidgetRenderer
-                        widget={widget}
-                        topic={topic}
-                        topicMap={topicMap}
-                        history={history}
-                        snapshot={snapshot}
-                        derived={derived}
-                        alerts={alerts}
-                        batteryHistory={batteryHistory}
-                        onUpdateWidget={onUpdateWidget}
-                      />
-                    </div>
-                  </div>
-
-                  {editMode ? (
-                    <div
-                      role="presentation"
-                      onPointerDown={(event) => beginInteraction(event, widget, 'resize')}
-                      className="absolute bottom-2 right-2 z-[2] h-5 w-5 cursor-se-resize rounded-[6px] border border-[var(--border)] bg-[var(--surface)]/90 text-[var(--text-muted)]"
-                      title="Resize widget"
-                    >
-                      <svg viewBox="0 0 20 20" aria-hidden="true" className="h-full w-full fill-none stroke-current p-1.5" strokeWidth="1.5">
-                        <path d="M6 14L14 6M10 14L14 10M14 14h0" />
-                      </svg>
-                    </div>
+                  {editMode ? <GripIcon className="-ml-1 shrink-0 text-[var(--text-faint)]" /> : null}
+                  <span className="hl-panel-title text-[12px]">{widget.title}</span>
+                  {isHomeWorkspaceTopicWidget(widget) && widget.topicKey ? (
+                    <span className="hl-panel-meta hidden text-[10.5px] @[300px]:inline" title={widget.topicKey}>
+                      {widget.topicKey}
+                    </span>
                   ) : null}
-                </article>
-              </div>
-            )
-          })}
-        </div>
+                  <div
+                    className={cn(
+                      'ml-auto flex shrink-0 items-center gap-0.5 transition-opacity',
+                      editMode || selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100',
+                    )}
+                  >
+                    <FrameIconButton onClick={openConfig} label="Panel settings">
+                      <GearSmallIcon />
+                    </FrameIconButton>
+                    {editMode ? (
+                      <FrameIconButton
+                        danger
+                        label="Remove panel"
+                        onClick={() => {
+                          onRemoveWidget(widget.id)
+                          setSelectedWidgetId((current) => (current === widget.id ? null : current))
+                        }}
+                      >
+                        <CloseIcon width="14" height="14" />
+                      </FrameIconButton>
+                    ) : null}
+                  </div>
+                </header>
+
+                <div className={cn('relative min-h-0 flex-1 overflow-hidden', fullBleed ? '' : 'p-2.5')}>
+                  <HomeWorkspaceWidgetRenderer
+                    widget={widget}
+                    topic={topic}
+                    topicMap={topicMap}
+                    history={history}
+                    snapshot={snapshot}
+                    derived={derived}
+                    alerts={alerts}
+                    batteryHistory={batteryHistory}
+                    onUpdateWidget={onUpdateWidget}
+                    onConfigure={openConfig}
+                  />
+                </div>
+
+                {editMode ? (
+                  <div
+                    role="presentation"
+                    onPointerDown={(event) => beginInteraction(event, widget, 'resize')}
+                    className="absolute right-0 bottom-0 z-[2] h-4 w-4 cursor-se-resize"
+                    title="Drag to resize"
+                  >
+                    <svg viewBox="0 0 16 16" aria-hidden="true" className="h-full w-full text-[var(--text-muted)]">
+                      <path d="M14 6v8H6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                    </svg>
+                  </div>
+                ) : null}
+              </article>
+            </div>
+          )
+        })}
       </div>
 
       {configuredWidget ? (

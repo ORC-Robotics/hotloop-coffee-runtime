@@ -1,4 +1,5 @@
 import {
+  type ReactNode,
   useEffect,
   useEffectEvent,
   useMemo,
@@ -11,7 +12,6 @@ import { clamp } from '../../lib/format'
 import { cn } from '../../lib/cn'
 import {
   decodeSpatialLidarPoints,
-  formatPoseAgeLabel,
   type SpatialScanRegistration,
   type ResolvedSpatialLidar,
   type ResolvedSpatialPose,
@@ -117,8 +117,8 @@ function buildPalette(target: HTMLElement): PlanarScenePalette {
   return {
     background: resolve('--surface', '#0b1320'),
     surface: resolve('--surface-alt', '#101b2b'),
-    gridMinor: resolve('--border', '#263245'),
-    gridMajor: resolve('--text-muted', '#6b7a90'),
+    gridMinor: resolve('--grid-line', '#263245'),
+    gridMajor: resolve('--border-strong', '#6b7a90'),
     axisX: resolve('--warning', '#f59e0b'),
     axisY: resolve('--info', '#38bdf8'),
     axisOrigin: resolve('--text', '#f8fafc'),
@@ -393,26 +393,36 @@ function buildMazeOverlaySceneModel(
 function OverlayButton({
   label,
   onClick,
-  compact = false,
   title,
+  active = false,
 }: {
   label: string
   onClick: () => void
   compact?: boolean
   title?: string
+  active?: boolean
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      title={title}
+      title={title ?? label}
+      aria-pressed={active}
       className={cn(
-        'pointer-events-auto rounded-full border border-[var(--border)] bg-[var(--surface)]/88 font-semibold uppercase tracking-[0.14em] text-[var(--text)] backdrop-blur-sm transition-colors hover:bg-[var(--surface-alt)]',
-        compact ? 'px-3 py-1.5 text-[0.64rem]' : 'px-3.5 py-2 text-[0.68rem]',
+        'pointer-events-auto inline-flex h-6 min-w-6 items-center justify-center rounded-[5px] px-1.5 text-[11.5px] font-medium whitespace-nowrap transition-colors',
+        active ? 'bg-[var(--primary-soft)] text-[var(--primary)]' : 'text-[var(--text-secondary)] hover:bg-[var(--surface-raised)] hover:text-[var(--text)]',
       )}
     >
       {label}
     </button>
+  )
+}
+
+function OverlayGroup({ children }: { children: ReactNode }) {
+  return (
+    <div className="pointer-events-auto flex items-center gap-0.5 rounded-[7px] border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface)_88%,transparent)] p-0.5 backdrop-blur-sm">
+      {children}
+    </div>
   )
 }
 
@@ -421,11 +431,7 @@ function OverlayInfoChip({
 }: {
   label: string
 }) {
-  return (
-    <div className="rounded-full border border-[var(--border)] bg-[var(--surface)]/88 px-3 py-1.5 text-[0.64rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)] backdrop-blur-sm">
-      {label}
-    </div>
-  )
+  return <span className="whitespace-nowrap">{label}</span>
 }
 
 export function PlanarViewerCanvas({
@@ -808,8 +814,8 @@ export function PlanarViewerCanvas({
     <div
       ref={shellRef}
       className={cn(
-        'relative h-full overflow-hidden rounded-[22px] border border-[var(--border)] bg-[var(--surface)]/70',
-        widgetVariant ? 'min-h-0' : 'min-h-[520px]',
+        'relative h-full overflow-hidden bg-[var(--background)]',
+        widgetVariant ? 'min-h-0' : 'min-h-[420px] rounded-[10px] border border-[var(--border)]',
       )}
     >
       <canvas
@@ -822,51 +828,46 @@ export function PlanarViewerCanvas({
         className={cn('h-full w-full touch-none', cursorClassName)}
       />
 
-      <div
-        className={cn(
-          'pointer-events-none absolute inset-x-0 top-0 flex flex-wrap items-start justify-between gap-3',
-          widgetVariant ? 'px-3 py-3' : 'px-4 py-4',
-        )}
-      >
-        {widgetVariant ? (
-          <>
-            <div className="flex flex-wrap gap-2">
-              <OverlayInfoChip
-                label={
-                  replaySelection
-                    ? `Replay ${replaySelection.index + 1}/${replaySelection.total}`
-                    : 'Live'
-                }
-              />
-              <OverlayInfoChip label={`Goal ${goalPreview.status}`} />
-              {mazeOverlay?.available ? <OverlayInfoChip label={`Maze ${mazeOverlay.state}`} /> : null}
-              {navStatusLabel ? <OverlayInfoChip label={navStatusLabel} /> : null}
-              <OverlayInfoChip
-                label={
-                  showOccupancyLayer
-                    ? occupancyDisplayMode === 'free-and-occupied'
-                      ? 'Occupancy Full'
-                      : 'Occupancy Occupied'
-                    : 'Occupancy Hidden'
-                }
-              />
-            </div>
+      <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-[7px] border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface)_88%,transparent)] px-2 py-1 text-[11px] text-[var(--text-muted)] backdrop-blur-sm">
+          <span className="inline-flex items-center gap-1.5 font-medium text-[var(--text-secondary)]">
+            <span
+              className="h-1.5 w-1.5 rounded-full"
+              style={{ background: replaySelection ? 'var(--warning)' : poseSelection.isRenderable ? 'var(--success)' : 'var(--text-faint)' }}
+            />
+            {replaySelection ? `Replay ${replaySelection.index + 1}/${replaySelection.total}` : 'Live'}
+          </span>
+          <span className="text-[var(--text-faint)]">{poseSelection.selectedSourceLabel}</span>
+          {goalPreview.status !== 'idle' ? <OverlayInfoChip label={`goal ${goalPreview.status}`} /> : null}
+          {mazeOverlay?.available ? <OverlayInfoChip label={`maze ${mazeOverlay.state}`} /> : null}
+          {navStatusLabel ? <OverlayInfoChip label={navStatusLabel} /> : null}
+        </div>
 
-            <div className="flex flex-wrap justify-end gap-2">
-              <OverlayButton compact label={followRobot ? 'Following' : 'Follow'} onClick={onToggleFollowRobot} />
-              <OverlayButton compact label="Center" onClick={onCenterRobot} />
-              <OverlayButton compact label="Reset" onClick={onResetView} />
-              <OverlayButton compact label={'\u21b6'} title="Rotate view left" onClick={() => onRotateViewport(-90)} />
-              <OverlayButton compact label={'\u21b7'} title="Rotate view right" onClick={() => onRotateViewport(90)} />
-              <OverlayButton
-                compact
-                label={showOccupancyLayer ? 'Hide Occ' : 'Show Occ'}
-                onClick={onToggleOccupancyLayer}
-              />
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <OverlayGroup>
+            <OverlayButton label="Follow" active={followRobot} onClick={onToggleFollowRobot} title="Keep the robot centred" />
+            <OverlayButton label="Center" onClick={onCenterRobot} title="Center on robot" />
+            <OverlayButton label="Reset" onClick={onResetView} title="Reset zoom and rotation" />
+            <span className="mx-0.5 h-3.5 w-px bg-[var(--border)]" />
+            <OverlayButton label={'\u21b6'} title="Rotate view left" onClick={() => onRotateViewport(-90)} />
+            <OverlayButton label={'\u21b7'} title="Rotate view right" onClick={() => onRotateViewport(90)} />
+            <span className="mx-0.5 h-3.5 w-px bg-[var(--border)]" />
+            <OverlayButton label="Occupancy" active={showOccupancyLayer} onClick={onToggleOccupancyLayer} title="Show occupancy grid" />
+          </OverlayGroup>
+          {!widgetVariant ? (
+            <OverlayGroup>
+              <OverlayButton label={observedMapFrozen ? 'Resume map' : 'Freeze map'} active={observedMapFrozen} onClick={onToggleObservedMapFrozen} />
+              <OverlayButton label="Clear trail" onClick={onClearTrail} />
+              <OverlayButton label="Clear map" onClick={onClearObservedMap} />
+              <OverlayButton label="Clear scans" onClick={onClearLidarHistory} />
+            </OverlayGroup>
+          ) : null}
+          {goalPreview.status !== 'idle' || (guidedNavigation && navActionLabel) ? (
+            <OverlayGroup>
               {goalPreview.status !== 'idle' ? (
                 <OverlayButton
-                  compact
                   label={goalActionLabel}
+                  active={goalPreview.status === 'armed'}
                   onClick={
                     goalPreview.status === 'armed'
                       ? onDisarmGoalPreview
@@ -877,194 +878,52 @@ export function PlanarViewerCanvas({
                 />
               ) : null}
               {guidedNavigation && navActionLabel ? (
-                <OverlayButton
-                  compact
-                  label={navActionLabel}
-                  onClick={handleGuidedNavigationAction}
-                />
+                <OverlayButton label={navActionLabel} onClick={handleGuidedNavigationAction} />
               ) : null}
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)]/86 px-3 py-2 text-[0.72rem] leading-6 text-[var(--text-muted)] backdrop-blur-sm">
-              <div>
-                {requireCtrlForInteraction
-                  ? 'Hold Ctrl to pan, zoom or click a free area for a path preview.'
-                  : 'Click a visited free area to preview a path. Drag to pan and use the mouse wheel to zoom.'}
-              </div>
-              <div>Press N to arm the current preview locally. Press Esc to clear the target.</div>
-              <div>Compact LiDAR overlays only when its pose frame matches the selected source.</div>
-            </div>
-
-            <div className="flex flex-wrap justify-end gap-2">
-              <OverlayButton label={followRobot ? 'Following Robot' : 'Follow Robot'} onClick={onToggleFollowRobot} />
-              <OverlayButton label="Center on Robot" onClick={onCenterRobot} />
-              <OverlayButton label="Reset View" onClick={onResetView} />
-              <OverlayButton label={'\u21b6'} title="Rotate view left" onClick={() => onRotateViewport(-90)} />
-              <OverlayButton label={'\u21b7'} title="Rotate view right" onClick={() => onRotateViewport(90)} />
-              <OverlayButton label="Clear Trail" onClick={onClearTrail} />
-              <OverlayButton
-                label={showOccupancyLayer ? 'Hide Occupancy' : 'Show Occupancy'}
-                onClick={onToggleOccupancyLayer}
-              />
-              <OverlayButton
-                label={observedMapFrozen ? 'Resume Map' : 'Freeze Map'}
-                onClick={onToggleObservedMapFrozen}
-              />
-              {goalPreview.status !== 'idle' ? (
-                <OverlayButton
-                  label={goalActionLabel}
-                  onClick={
-                    goalPreview.status === 'armed'
-                      ? onDisarmGoalPreview
-                      : goalPreview.status === 'ready'
-                        ? onArmGoalPreview
-                        : onClearGoalPreview
-                  }
-                />
-              ) : null}
-              {guidedNavigation && navActionLabel ? (
-                <OverlayButton
-                  label={navActionLabel}
-                  onClick={handleGuidedNavigationAction}
-                />
-              ) : null}
-              <OverlayButton label="Clear Map" onClick={onClearObservedMap} />
-              <OverlayButton label="Clear Scan Buffer" onClick={onClearLidarHistory} />
-            </div>
-          </>
-        )}
+            </OverlayGroup>
+          ) : null}
+        </div>
       </div>
 
-      {!widgetVariant ? (
-        replaySelection ? (
-          <div className="pointer-events-none absolute left-4 top-24 rounded-[18px] border border-[var(--border)] bg-[var(--surface)]/88 px-3 py-2 text-[0.72rem] leading-6 text-[var(--text-muted)] backdrop-blur-sm">
-            <div className="font-semibold uppercase tracking-[0.14em] text-[var(--text)]">Replay Mode</div>
-            <div>
-              Sample {replaySelection.index + 1}/{replaySelection.total} | Seq {replaySelection.scan.sequence}
-            </div>
-            <div>
-              Captured {new Date(replaySelection.scan.timestampMs).toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-              })}{' '}
-              | {formatPoseAgeLabel(replaySelection.ageMs)} old
-            </div>
-          </div>
-        ) : (
-          <div className="pointer-events-none absolute left-4 top-24 rounded-[18px] border border-[var(--border)] bg-[var(--surface)]/88 px-3 py-2 text-[0.72rem] leading-6 text-[var(--text-muted)] backdrop-blur-sm">
-            <div className="font-semibold uppercase tracking-[0.14em] text-[var(--text)]">Live Mode</div>
-            <div>The viewer is following the latest pose and current compact LiDAR sample.</div>
-          </div>
-        )
-      ) : null}
-
-      <div
-        className={cn(
-          'pointer-events-none absolute inset-x-0 bottom-0 flex flex-wrap items-end justify-between gap-3',
-          widgetVariant ? 'px-3 py-3' : 'px-4 py-4',
-        )}
-      >
-        {widgetVariant ? (
-          <>
-            <div className="flex flex-wrap gap-2">
-              <OverlayInfoChip label={`Zoom ${Math.round(viewport.zoomPxPerMm * 1000)} px/m`} />
-              <OverlayInfoChip label={formatViewportRotation(viewport.rotationDeg)} />
-              <OverlayInfoChip label={`Trail ${trail.length}`} />
-              <OverlayInfoChip label={`Scans ${observedMapScans.length}`} />
-              {requireCtrlForInteraction ? <OverlayInfoChip label={interactionModifierActive ? 'Ctrl Armed' : 'Hold Ctrl'} /> : null}
-              <OverlayInfoChip
-                label={
-                  lidarSelection.isRenderable
-                    ? `LiDAR ${lidarSelection.scan.validPointCount}/${lidarSelection.scan.pointCount}`
-                    : `LiDAR ${lidarSelection.renderState}`
-                }
-              />
-            </div>
-
-            <div className="flex flex-wrap justify-end gap-2">
-              <OverlayInfoChip label={poseSelection.selectedSourceLabel} />
-              <OverlayInfoChip
-                label={
-                  scanRegistration.available && scanRegistration.meanResidualMm !== null
-                    ? `Reg ${scanRegistration.quality}`
-                    : 'Reg Unavailable'
-                }
-              />
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)]/88 px-3 py-2 text-[0.72rem] leading-6 text-[var(--text-muted)] backdrop-blur-sm">
-              <div>Zoom {Math.round(viewport.zoomPxPerMm * 1000)} px/m</div>
-              <div>{formatViewportRotation(viewport.rotationDeg)}</div>
-              <div>Trail {trail.length} pts</div>
-              <div>Follow robot {followRobot ? 'enabled' : 'off'}</div>
-              {requireCtrlForInteraction ? <div>Interaction requires Ctrl</div> : null}
-              <div>
-                Observed map {observedMapScans.length} scans |{' '}
-                {observedMapScans.reduce((total, scan) => total + scan.pointCount, 0)} pts
-              </div>
-              <div>Observed map mode {observedMapFrozen ? 'frozen' : 'live'}</div>
-              <div>
-                Occupancy{' '}
-                {showOccupancyLayer && occupancyLayer
-                  ? `${occupancyLayer.cells.length} cells | ${occupancyDisplayMode}`
-                  : showOccupancyLayer
-                    ? 'building'
-                    : 'hidden'}
-              </div>
-              <div>Buffered scans {lidarHistory.length}</div>
-              <div>
-                LiDAR{' '}
-                {lidarSelection.isRenderable
-                  ? `${lidarSelection.scan.validPointCount}/${lidarSelection.scan.pointCount} pts`
-                  : lidarSelection.renderState}
-              </div>
-              <div>
-                Registration{' '}
-                {scanRegistration.available && scanRegistration.meanResidualMm !== null
-                  ? `${scanRegistration.quality} | ${Math.round(scanRegistration.meanResidualMm)} mm`
-                  : 'unavailable'}
-              </div>
-              <div>
-                Goal preview{' '}
-                {goalPreview.status === 'idle'
-                  ? 'idle'
-                  : goalPreview.target
-                    ? `${goalPreview.status} | ${goalPreview.path.length} pts`
-                    : goalPreview.status}
-              </div>
-              <div>
-                Maze overlay{' '}
-                {mazeOverlay?.available
-                  ? `${mazeOverlay.state} | ${mazeOverlay.route.length} route pts | ${mazeOverlay.candidates.length} cand`
-                  : 'unavailable'}
-              </div>
-              {guidedNavigation ? (
-                <div>
-                  Guided nav{' '}
-                  {guidedNavigation.canStart || guidedNavigation.active
-                    ? guidedNavigation.status
-                    : guidedNavigation.startBlockedReasons.join(', ') || guidedNavigation.status}
-                </div>
-              ) : null}
-            </div>
-
-            <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface)]/88 px-3 py-2 text-right text-[0.72rem] leading-6 text-[var(--text-muted)] backdrop-blur-sm">
-              <div>{poseSelection.selectedSourceLabel}</div>
-              <div>{poseSelection.isRenderable ? `${poseSelection.pose.frame} frame` : 'No valid pose selected'}</div>
-            </div>
-          </>
-        )}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-2">
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 rounded-[6px] bg-[color-mix(in_srgb,var(--surface)_80%,transparent)] px-1.5 py-0.5 font-mono text-[10.5px] text-[var(--text-faint)] backdrop-blur-sm">
+          <OverlayInfoChip label={`${Math.round(viewport.zoomPxPerMm * 1000)} px/m`} />
+          <OverlayInfoChip label={formatViewportRotation(viewport.rotationDeg)} />
+          <OverlayInfoChip label={`trail ${trail.length}`} />
+          <OverlayInfoChip label={`scans ${observedMapScans.length}`} />
+          <OverlayInfoChip
+            label={
+              lidarSelection.isRenderable
+                ? `lidar ${lidarSelection.scan.validPointCount}/${lidarSelection.scan.pointCount}`
+                : `lidar ${lidarSelection.renderState}`
+            }
+          />
+          <OverlayInfoChip
+            label={
+              scanRegistration.available && scanRegistration.meanResidualMm !== null
+                ? `reg ${scanRegistration.quality} ${Math.round(scanRegistration.meanResidualMm)}mm`
+                : 'reg —'
+            }
+          />
+          {!widgetVariant && showOccupancyLayer ? (
+            <OverlayInfoChip label={occupancyLayer ? `occ ${occupancyLayer.cells.length} ${occupancyDisplayMode}` : 'occ building'} />
+          ) : null}
+          {!widgetVariant && lidarHistory.length ? <OverlayInfoChip label={`buffer ${lidarHistory.length}`} /> : null}
+          {!widgetVariant && observedMapFadeOlderScans ? null : null}
+        </div>
+        <div className="shrink-0 rounded-[6px] bg-[color-mix(in_srgb,var(--surface)_80%,transparent)] px-1.5 py-0.5 text-[10.5px] text-[var(--text-faint)] backdrop-blur-sm">
+          {requireCtrlForInteraction
+            ? interactionModifierActive
+              ? 'drag to pan · wheel to zoom · click to set goal'
+              : 'hold Ctrl to pan / zoom'
+            : 'drag to pan · wheel to zoom · click free space for a goal · N arms · Esc clears'}
+        </div>
       </div>
 
       {!poseSelection.isRenderable ? (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-6">
-          <div className="max-w-[360px] rounded-[22px] border border-dashed border-[var(--border)] bg-[var(--surface)]/88 px-5 py-5 text-center text-[0.84rem] leading-7 text-[var(--text-muted)] backdrop-blur-sm">
-            No valid planar pose is available for the selected source. Switch the override or start a live source to validate robot motion.
+          <div className="rounded-[8px] border border-[var(--border)] bg-[color-mix(in_srgb,var(--surface)_90%,transparent)] px-3 py-2 text-center text-[12px] text-[var(--text-muted)] backdrop-blur-sm">
+            No pose from the selected source
           </div>
         </div>
       ) : null}

@@ -2,6 +2,26 @@
 
 Todas as mudancas relevantes deste projeto sao registradas aqui.
 
+## [Unreleased]
+
+### Changed
+- rebuilt the operator UI around a single left navigation (Drive, Map, Cameras, Topics, Health) and one status bar with robot state, link, battery, alerts, Live/Sim and an always-visible E-Stop
+- new Drive page: control dock (Teleop/Auto, auto routine list, Enable/Disable, live driver input, gyro assist) beside the panel layout, which now ships with a default map + pose + heading + battery + sensors + alerts layout
+- redesigned every panel: flat frames with the topic path in the header, values that scale with panel size instead of switching layouts, real plots with axes and threshold lines, flat indicators and toggle buttons
+- layout editing is now opt-in ("Edit layout"); moving or resizing a panel pushes neighbours down instead of relocating the panel
+- Topics page is now a topic explorer with a live inspector, plot, value writing for writable topics and "Add to Drive layout"; the separate Custom Board was folded into the Drive layout
+- new Graphite / Slate / Midnight themes, Geist and Geist Mono bundled locally (no Google Fonts request, works offline at the field)
+- Map overlays condensed into compact toolbars; deep-diagnostic map cards collapse by default
+
+### Fixed
+- the Interface size (Data scale) setting now actually scales the UI
+- removed Settings options that had no effect (overview/diagnostics/systems layouts, layout lock)
+- battery status no longer shows "critical" for voltage swing while the pack voltage itself is only low; thresholds are shared across all readouts
+- map consumers share one spatial poller instead of each polling the bridge every 150 ms
+
+### Removed
+- unused `@adobe/react-spectrum` dependency
+
 ## [0.3.5] - 2026-04-17
 
 ### Added

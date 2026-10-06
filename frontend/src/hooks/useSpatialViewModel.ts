@@ -190,6 +190,8 @@ interface SpatialGoalRequest {
 
 interface UseSpatialViewModelOptions {
   goalTargetYawDeg?: number | null
+  /** Start with the camera following the robot (embedded map panels). */
+  followRobotByDefault?: boolean
 }
 
 interface SpatialGoalPlannerGrid {
@@ -1157,7 +1159,7 @@ export function useSpatialViewModel(
 ): SpatialViewModel {
   const [sourceOverride, setSourceOverride] = useState<PoseSourceOverride>('auto')
   const [viewport, setViewport] = useState<SpatialViewportState>(DEFAULT_VIEWPORT)
-  const [followRobot, setFollowRobotState] = useState(false)
+  const [followRobot, setFollowRobotState] = useState(options.followRobotByDefault ?? false)
   const [trail, setTrail] = useState<SpatialTrailPoint[]>([])
   const [lidarHistory, setLidarHistory] = useState<SpatialBufferedLidarScan[]>([])
   const [observedMapScans, setObservedMapScans] = useState<SpatialObservedMapScan[]>([])

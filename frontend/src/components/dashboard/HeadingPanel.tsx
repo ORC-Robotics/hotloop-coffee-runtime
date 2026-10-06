@@ -1,19 +1,13 @@
 import { clamp } from '../../lib/format'
+import { toneColor } from '../../lib/robotThresholds'
 import type { HeadingData, UiTone } from '../../types/telemetry'
+import { Compass, FillBar, Readout, StatRow } from '../viz/viz'
 import { DashboardCard } from './DashboardCard'
 import { StatusBadge } from './StatusBadge'
 
 interface HeadingPanelProps {
   data: HeadingData
   tone: UiTone
-}
-
-function polarPoint(cx: number, cy: number, radius: number, degrees: number) {
-  const radians = ((degrees - 90) * Math.PI) / 180
-  return {
-    x: cx + Math.cos(radians) * radius,
-    y: cy + Math.sin(radians) * radius,
-  }
 }
 
 function angularTone(error: number): UiTone {
@@ -23,22 +17,12 @@ function angularTone(error: number): UiTone {
   return 'good'
 }
 
-function angularStatus(error: number) {
-  const magnitude = Math.abs(error)
-  if (magnitude > 18) return 'Recovering'
-  if (magnitude > 6) return 'Correcting'
-  return 'Locked'
-}
-
 export function HeadingPanel({ data, tone }: HeadingPanelProps) {
   return (
     <DashboardCard
-      title="Heading / Gyro"
-      subtitle="orientation instrument"
-      accent="accent"
-      className="min-h-[0]"
-      headerSlot={<StatusBadge tone={tone} label={tone === 'good' ? 'aligned' : tone === 'warning' ? 'correcting' : 'attention'} />}
-      bodyClassName="pt-3.5"
+      title="Heading"
+      subtitle="gyro / navX"
+      headerSlot={<StatusBadge tone={tone} label={tone === 'good' ? 'aligned' : tone === 'warning' ? 'correcting' : 'off target'} />}
     >
       <HeadingPanelBody data={data} />
     </DashboardCard>
@@ -47,168 +31,39 @@ export function HeadingPanel({ data, tone }: HeadingPanelProps) {
 
 export function HeadingPanelBody({
   data,
-  variant = 'panel',
 }: Pick<HeadingPanelProps, 'data'> & { variant?: 'panel' | 'widget' }) {
-  const size = 116
-  const center = size / 2
-  const outerRadius = 45
-  const yawPoint = polarPoint(center, center, outerRadius - 8, data.yawDeg)
   const errorTone = angularTone(data.angularErrorDeg)
-  const errorColor =
-    errorTone === 'critical'
-      ? 'var(--danger)'
-      : errorTone === 'warning'
-        ? 'var(--warning)'
-        : 'var(--success)'
-  const errorWidth = `${clamp(Math.abs(data.angularErrorDeg) / 30, 0.08, 1) * 100}%`
-
-  if (variant === 'widget') {
-    return (
-      <div className="grid gap-3">
-        <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-alt)]/84 px-3.5 py-3">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                Heading
-              </div>
-              <div className="mt-1.5 text-[clamp(1.5rem,1.2rem+1vw,2.4rem)] font-semibold leading-none tracking-[-0.08em] text-[var(--text)]">
-                {data.yawDeg.toFixed(1)} deg
-              </div>
-              <div className="mt-2 text-[0.76rem] font-semibold uppercase tracking-[0.12em] text-[var(--success)]">
-                Target {data.targetYawDeg.toFixed(1)} deg
-              </div>
-            </div>
-
-            <svg viewBox={`0 0 ${size} ${size}`} className="h-[74px] w-[74px] shrink-0">
-              <circle cx={center} cy={center} r={outerRadius + 7} fill="none" stroke="var(--gridLine)" strokeWidth="1.2" />
-              <circle cx={center} cy={center} r={outerRadius} fill="none" stroke="var(--gaugeTrack)" strokeWidth="3.2" />
-              <line
-                x1={center}
-                y1={center}
-                x2={yawPoint.x}
-                y2={yawPoint.y}
-                stroke="var(--accent)"
-                strokeWidth="4"
-                strokeLinecap="round"
-              />
-              <circle cx={center} cy={center} r="5.5" fill="var(--surface-raised)" stroke="var(--text)" strokeWidth="1.2" />
-            </svg>
-          </div>
-        </div>
-
-        <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-alt)]/84 px-3.5 py-3">
-          <div className="flex items-end justify-between gap-3">
-            <div>
-              <div className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                Angular Error
-              </div>
-              <div className="mt-1.5 text-[clamp(1.35rem,1.12rem+0.92vw,2.15rem)] font-semibold leading-none tracking-[-0.08em] text-[var(--text)]">
-                {Math.abs(data.angularErrorDeg).toFixed(1)} deg
-              </div>
-            </div>
-
-            <div className="pb-1 text-right text-[0.74rem] font-semibold uppercase tracking-[0.14em]" style={{ color: errorColor }}>
-              <div>{angularStatus(data.angularErrorDeg)}</div>
-              <div className="mt-1 text-[0.7rem] text-[var(--text-muted)]">
-                Lateral {data.lateralErrorM.toFixed(2)} m
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-3 h-2.5 rounded-full bg-[var(--background-subtle)]">
-            <div
-              className="h-2.5 rounded-full transition-all duration-200"
-              style={{
-                width: errorWidth,
-                background: errorColor,
-              }}
-            />
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   return (
-    <div className="grid gap-3 xl:grid-cols-2">
-      <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-alt)]/84 px-4 py-3.5">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-              Heading
-            </div>
-            <div className="mt-2 text-[2rem] font-semibold tracking-[-0.08em] text-[var(--text)]">
-              {data.yawDeg.toFixed(1)} deg
-            </div>
-            <div className="mt-2 text-[0.84rem] font-semibold uppercase tracking-[0.12em] text-[var(--success)]">
-              Target: {data.targetYawDeg.toFixed(1)} deg
-            </div>
+    <div className="flex h-full min-h-0 items-center gap-4 [container-type:inline-size]">
+      <Compass
+        yawDeg={data.yawDeg}
+        targetDeg={data.targetYawDeg}
+        className="h-full max-h-[150px] min-h-[72px] w-auto shrink-0"
+      />
+      <div className="grid min-w-0 flex-1 gap-2.5">
+        <Readout label="Yaw" value={data.yawDeg.toFixed(1)} unit="°" size="lg" />
+        <div>
+          <div className="mb-1 flex items-baseline justify-between gap-2">
+            <span className="hl-label">Error</span>
+            <span className="hl-value text-[12.5px]" style={{ color: errorTone === 'good' ? undefined : toneColor(errorTone) }}>
+              {data.angularErrorDeg >= 0 ? '+' : ''}
+              {data.angularErrorDeg.toFixed(1)}°
+            </span>
           </div>
-
-          <svg viewBox={`0 0 ${size} ${size}`} className="h-[88px] w-[88px] shrink-0">
-            <circle cx={center} cy={center} r={outerRadius + 7} fill="none" stroke="var(--gridLine)" strokeWidth="1.2" />
-            <circle cx={center} cy={center} r={outerRadius} fill="none" stroke="var(--gaugeTrack)" strokeWidth="3.6" />
-
-            {([
-              ['N', 0],
-              ['E', 90],
-              ['S', 180],
-              ['W', 270],
-            ] as const).map(([label, degrees]) => {
-              const point = polarPoint(center, center, outerRadius + 13, degrees)
-              return (
-                <text
-                  key={label}
-                  x={point.x}
-                  y={point.y}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fill="var(--text-muted)"
-                  fontSize="11"
-                  fontFamily="IBM Plex Mono, monospace"
-                >
-                  {label}
-                </text>
-              )
-            })}
-
-            <line
-              x1={center}
-              y1={center}
-              x2={yawPoint.x}
-              y2={yawPoint.y}
-              stroke="var(--accent)"
-              strokeWidth="4"
-              strokeLinecap="round"
-            />
-            <circle cx={center} cy={center} r="5.5" fill="var(--surface-raised)" stroke="var(--text)" strokeWidth="1.2" />
-          </svg>
+          <FillBar ratio={clamp(Math.abs(data.angularErrorDeg) / 30, 0.02, 1)} color={toneColor(errorTone)} />
         </div>
-      </div>
-
-      <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-alt)]/84 px-4 py-3.5">
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <div className="text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-              Angular Error
-            </div>
-            <div className="mt-2 text-[2rem] font-semibold tracking-[-0.08em] text-[var(--text)]">
-              {Math.abs(data.angularErrorDeg).toFixed(1)} deg
-            </div>
-          </div>
-          <div className="pb-1 text-[0.8rem] font-semibold uppercase tracking-[0.14em]" style={{ color: errorColor }}>
-            {angularStatus(data.angularErrorDeg)}
-          </div>
-        </div>
-
-        <div className="mt-4 h-2.5 rounded-full bg-[var(--background-subtle)]">
-          <div
-            className="h-2.5 rounded-full transition-all duration-200"
-            style={{
-              width: errorWidth,
-              background: errorColor,
-            }}
+        <div>
+          <StatRow
+            label={
+              <span className="inline-flex items-center gap-1.5">
+                <span className="hl-dot !h-1.5 !w-1.5" style={{ background: 'var(--primary)' }} />
+                Target
+              </span>
+            }
+            value={`${data.targetYawDeg.toFixed(1)}°`}
           />
+          <StatRow label="Lateral" value={`${data.lateralErrorM.toFixed(2)} m`} />
         </div>
       </div>
     </div>

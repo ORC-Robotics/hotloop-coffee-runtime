@@ -1,14 +1,16 @@
 /* eslint-disable react-refresh/only-export-components */
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { writeTelemetryTopicValue } from '../../../data/telemetryGateway'
+import { useElementSize } from '../../../hooks/useElementSize'
+import { useSpatialTelemetry } from '../../../hooks/useSpatialTelemetry'
 import { cn } from '../../../lib/cn'
 import { clamp } from '../../../lib/format'
+import { toneColor } from '../../../lib/robotThresholds'
 import { getHomeWorkspacePresetDefinition } from '../../../home-workspace/homeWorkspacePresets'
 import {
   type HomeWorkspacePresetWidget,
   isHomeWorkspacePresetWidget,
-  isHomeWorkspaceTopicWidget,
   type HomeWorkspaceTopicWidget,
   type HomeWorkspaceWidget,
   type HomeWorkspaceWidgetRenderer as WidgetRendererId,
@@ -19,7 +21,9 @@ import type {
   TelemetryDerivedState,
   TelemetrySnapshot,
   TelemetryTopic,
+  UiTone,
 } from '../../../types/telemetry'
+import { EmptyHint, FillBar, FitValue, StatusDot, TimePlot } from '../../viz/viz'
 import { AlertsPanelBody } from '../AlertsPanel'
 import { BatteryPanelBody } from '../BatteryPanel'
 import { CommandsPanelBody } from '../CommandsPanel'
@@ -33,14 +37,16 @@ export type WorkspaceHistoryPoint = {
   value: number
 }
 
-export type WorkspaceWidgetDensity = 'compact' | 'medium' | 'large'
 type WorkspaceTopicKind = 'number' | 'boolean' | 'text'
-type WorkspaceWidgetTone = 'good' | 'warning' | 'critical' | 'neutral'
 
 const RASPBERRY_AVAILABLE_TOPIC = 'Telemetry/Robot/Raspberry/Available'
 const RASPBERRY_CPU_TOPIC = 'Telemetry/Robot/Raspberry/CPU Usage (%)'
 const RASPBERRY_RAM_TOPIC = 'Telemetry/Robot/Raspberry/RAM Usage (%)'
 const RASPBERRY_TEMPERATURE_TOPIC = 'Telemetry/Robot/Raspberry/Temperature (C)'
+
+/* -------------------------------------------------------------------------- */
+/* Renderer catalogue                                                         */
+/* -------------------------------------------------------------------------- */
 
 function getTopicKind(topic: TelemetryTopic | null): WorkspaceTopicKind {
   if (topic?.valueKind === 'number') return 'number'
@@ -56,152 +62,29 @@ function getNumericTopicValue(topic: TelemetryTopic | null) {
   return topic.value
 }
 
-function formatNumberValue(value: number | null, decimals: number, units: string) {
-  if (value === null) {
-    return '--'
-  }
-
-  const unitSuffix = units.trim() ? ` ${units.trim()}` : ''
-  return `${value.toFixed(decimals)}${unitSuffix}`
-}
-
-function formatCompactMetric(value: number | null, decimals: number, units: string) {
-  if (value === null) {
-    return '--'
-  }
-
-  if (units === '%') {
-    return `${value.toFixed(decimals)}%`
-  }
-
-  return `${value.toFixed(decimals)} ${units}`.trim()
-}
-
-function toneAccent(tone: WorkspaceWidgetTone) {
-  if (tone === 'critical') {
-    return {
-      color: 'var(--danger)',
-      soft: 'color-mix(in srgb, var(--danger) 18%, transparent)',
-      border: 'color-mix(in srgb, var(--danger) 32%, transparent)',
-    }
-  }
-
-  if (tone === 'warning') {
-    return {
-      color: 'var(--warning)',
-      soft: 'color-mix(in srgb, var(--warning) 18%, transparent)',
-      border: 'color-mix(in srgb, var(--warning) 32%, transparent)',
-    }
-  }
-
-  if (tone === 'good') {
-    return {
-      color: 'var(--accent)',
-      soft: 'color-mix(in srgb, var(--accent) 18%, transparent)',
-      border: 'color-mix(in srgb, var(--accent) 32%, transparent)',
-    }
-  }
-
-  return {
-    color: 'var(--secondary, var(--info))',
-    soft: 'color-mix(in srgb, var(--info) 18%, transparent)',
-    border: 'color-mix(in srgb, var(--border-strong) 48%, transparent)',
-  }
-}
-
-function evaluateNumericTone(value: number | null, widget: HomeWorkspaceTopicWidget): WorkspaceWidgetTone {
-  if (value === null) {
-    return 'neutral'
-  }
-
-  const { warningMin, warningMax, criticalMin, criticalMax } = widget.config
-
-  if (
-    (criticalMin !== null && value < criticalMin) ||
-    (criticalMax !== null && value > criticalMax)
-  ) {
-    return 'critical'
-  }
-
-  if (
-    (warningMin !== null && value < warningMin) ||
-    (warningMax !== null && value > warningMax)
-  ) {
-    return 'warning'
-  }
-
-  return 'good'
-}
-
-function densityFromWidget(widget: HomeWorkspaceWidget): WorkspaceWidgetDensity {
-  const area = widget.w * widget.h
-  let density: WorkspaceWidgetDensity = 'medium'
-
-  if (area <= 10 || widget.w <= 3 || widget.h <= 2) {
-    density = 'compact'
-  } else if (area >= 20 || widget.w >= 6 || widget.h >= 4) {
-    density = 'large'
-  }
-
-  if (isHomeWorkspaceTopicWidget(widget) && widget.config.compact && density === 'large') return 'medium'
-  if (isHomeWorkspaceTopicWidget(widget) && widget.config.compact && density === 'medium') return 'compact'
-  return density
-}
-
-export function resolveWidgetDensity(widget: HomeWorkspaceWidget) {
-  return densityFromWidget(widget)
-}
-
-function rendererFallbackForDensity(
-  renderer: WidgetRendererId,
-  topicKind: WorkspaceTopicKind,
-  density: WorkspaceWidgetDensity,
-): WidgetRendererId {
-  if (density === 'compact') {
-    if (renderer === 'sparkline' || renderer === 'gauge' || renderer === 'bar') {
-      return topicKind === 'number' ? 'number' : 'text-line'
-    }
-
-    if (renderer === 'boolean-tile') return 'boolean-pill'
-    if (renderer === 'text-tile') return 'text-line'
-  }
-
-  if (density === 'medium') {
-    if (renderer === 'sparkline' && topicKind === 'number') return 'stat'
-    if (renderer === 'text-tile' && topicKind === 'text') return 'text-line'
-  }
-
-  return renderer
-}
-
 export function allowedWidgetRenderers(topic: TelemetryTopic | null): WidgetRendererId[] {
   const kind = getTopicKind(topic)
 
   if (kind === 'boolean') {
-    return topic?.isWritable
-      ? ['auto', 'boolean-button', 'boolean-light', 'boolean-pill', 'boolean-tile', 'text-line']
-      : ['auto', 'boolean-light', 'boolean-pill', 'boolean-tile', 'text-line']
+    return topic?.isWritable ? ['auto', 'boolean-light', 'boolean-button', 'text-line'] : ['auto', 'boolean-light', 'text-line']
   }
 
   if (kind === 'number') {
-    return ['auto', 'number', 'stat', 'gauge', 'bar', 'sparkline']
+    return ['auto', 'stat', 'number', 'sparkline', 'gauge', 'bar']
   }
 
-  return ['auto', 'text-line', 'text-tile']
+  return ['auto', 'text-line']
 }
 
 export function widgetRendererLabel(renderer: WidgetRendererId) {
-  if (renderer === 'number') return 'Plain Number'
-  if (renderer === 'stat') return 'Stat Card'
+  if (renderer === 'number') return 'Value'
+  if (renderer === 'stat') return 'Value + trend'
   if (renderer === 'gauge') return 'Gauge'
-  if (renderer === 'bar') return 'Percent Bar'
-  if (renderer === 'sparkline') return 'Trend Graph'
-  if (renderer === 'boolean-button') return 'Boolean Button'
-  if (renderer === 'boolean-light') return 'Boolean LED'
-  if (renderer === 'boolean-pill') return 'Pill State'
-  if (renderer === 'boolean-tile') return 'On/Off Tile'
-  if (renderer === 'text-line') return 'Status Line'
-  if (renderer === 'text-tile') return 'Readout Tile'
+  if (renderer === 'bar') return 'Bar'
+  if (renderer === 'sparkline') return 'Plot'
+  if (renderer === 'boolean-button') return 'Toggle button'
+  if (renderer === 'boolean-light' || renderer === 'boolean-pill' || renderer === 'boolean-tile') return 'Indicator'
+  if (renderer === 'text-line' || renderer === 'text-tile') return 'Text'
   return 'Auto'
 }
 
@@ -213,382 +96,259 @@ export function workspaceWidgetLabel(widget: HomeWorkspaceWidget) {
   return widgetRendererLabel(widget.renderer)
 }
 
-function booleanAccent(value: boolean | null) {
-  if (value === null) {
-    return {
-      color: 'var(--text-muted)',
-      soft: 'color-mix(in srgb, var(--border-strong) 18%, transparent)',
-      border: 'color-mix(in srgb, var(--border-strong) 48%, transparent)',
-    }
-  }
-
-  if (value) {
-    return {
-      color: 'var(--success)',
-      soft: 'color-mix(in srgb, var(--success) 18%, transparent)',
-      border: 'color-mix(in srgb, var(--success) 32%, transparent)',
-    }
-  }
-
-  return {
-    color: 'var(--danger)',
-    soft: 'color-mix(in srgb, var(--danger) 18%, transparent)',
-    border: 'color-mix(in srgb, var(--danger) 32%, transparent)',
-  }
-}
-
-function metricToneAccent(tone: WorkspaceWidgetTone) {
-  if (tone === 'critical') {
-    return {
-      color: 'var(--danger)',
-      soft: 'color-mix(in srgb, var(--danger) 18%, transparent)',
-      border: 'color-mix(in srgb, var(--danger) 32%, transparent)',
-    }
-  }
-
-  if (tone === 'warning') {
-    return {
-      color: 'var(--warning)',
-      soft: 'color-mix(in srgb, var(--warning) 18%, transparent)',
-      border: 'color-mix(in srgb, var(--warning) 32%, transparent)',
-    }
-  }
-
-  if (tone === 'good') {
-    return {
-      color: 'var(--success)',
-      soft: 'color-mix(in srgb, var(--success) 18%, transparent)',
-      border: 'color-mix(in srgb, var(--success) 32%, transparent)',
-    }
-  }
-
-  return {
-    color: 'var(--text-muted)',
-    soft: 'color-mix(in srgb, var(--border-strong) 18%, transparent)',
-    border: 'color-mix(in srgb, var(--border-strong) 48%, transparent)',
-  }
-}
-
-function resolveRenderer(widget: HomeWorkspaceTopicWidget, topic: TelemetryTopic | null, density: WorkspaceWidgetDensity) {
-  const kind = getTopicKind(topic)
-  const allowed = allowedWidgetRenderers(topic)
-
-  if (widget.renderer !== 'auto' && (topic === null || allowed.includes(widget.renderer))) {
-    return rendererFallbackForDensity(widget.renderer, kind, density)
-  }
-
-  if (kind === 'boolean') {
-    if (density === 'compact') return 'boolean-light'
-    if (density === 'large') return 'boolean-tile'
-    return 'boolean-pill'
-  }
-
-  if (kind === 'number') {
-    if (density === 'compact') return 'number'
-    if (density === 'large') return widget.h >= 4 ? 'sparkline' : 'gauge'
-    return 'stat'
-  }
-
-  return density === 'large' ? 'text-tile' : 'text-line'
-}
-
 export function suggestedWidgetTitle(topic: TelemetryTopic | null) {
-  return topic?.label?.trim() || 'New Widget'
+  return topic?.label?.trim() || 'New panel'
 }
 
-function polarToCartesian(centerX: number, centerY: number, radius: number, angleDegrees: number) {
-  const angleRadians = ((angleDegrees - 90) * Math.PI) / 180
-  return {
-    x: centerX + radius * Math.cos(angleRadians),
-    y: centerY + radius * Math.sin(angleRadians),
+/** One renderer per topic kind; size never changes which renderer is used. */
+function resolveRenderer(widget: HomeWorkspaceTopicWidget, topic: TelemetryTopic | null): WidgetRendererId {
+  const kind = getTopicKind(topic)
+
+  if (widget.renderer !== 'auto' && (topic === null || allowedWidgetRenderers(topic).includes(widget.renderer))) {
+    return widget.renderer
   }
+  if (widget.renderer === 'boolean-pill' || widget.renderer === 'boolean-tile') return 'boolean-light'
+  if (widget.renderer === 'text-tile') return 'text-line'
+
+  if (kind === 'boolean') return 'boolean-light'
+  if (kind === 'number') return 'stat'
+  return 'text-line'
 }
 
-function describeArc(x: number, y: number, radius: number, startAngle: number, endAngle: number) {
-  const start = polarToCartesian(x, y, radius, endAngle)
-  const end = polarToCartesian(x, y, radius, startAngle)
-  const largeArcFlag = endAngle - startAngle <= 180 ? '0' : '1'
-  return ['M', start.x, start.y, 'A', radius, radius, 0, largeArcFlag, 0, end.x, end.y].join(' ')
-}
-
-function buildSparklinePath(history: WorkspaceHistoryPoint[], min: number, max: number, width: number, height: number) {
-  if (history.length < 2) {
-    return `M 0 ${height / 2} L ${width} ${height / 2}`
+function evaluateNumericTone(value: number | null, widget: HomeWorkspaceTopicWidget): UiTone {
+  if (value === null) {
+    return 'neutral'
   }
 
-  const safeRange = Math.max(0.0001, max - min)
-  return history
-    .map((point, index) => {
-      const x = (index / Math.max(1, history.length - 1)) * width
-      const y = height - ((point.value - min) / safeRange) * height
-      return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${clamp(y, 0, height).toFixed(2)}`
-    })
-    .join(' ')
+  const { warningMin, warningMax, criticalMin, criticalMax } = widget.config
+  if ((criticalMin !== null && value < criticalMin) || (criticalMax !== null && value > criticalMax)) {
+    return 'critical'
+  }
+  if ((warningMin !== null && value < warningMin) || (warningMax !== null && value > warningMax)) {
+    return 'warning'
+  }
+
+  const hasThresholds = [warningMin, warningMax, criticalMin, criticalMax].some((limit) => limit !== null)
+  return hasThresholds ? 'good' : 'neutral'
 }
 
-function WidgetEmptyState({
-  title,
-  subtitle,
-}: {
-  title: string
-  subtitle: string
-}) {
+function formatValue(value: number | null, decimals: number) {
+  return value === null ? '--' : value.toFixed(decimals)
+}
+
+function rangeOf(widget: HomeWorkspaceTopicWidget, history: number[], value: number | null) {
+  const min = widget.config.criticalMin ?? widget.config.warningMin
+  const max = widget.config.criticalMax ?? widget.config.warningMax
+  if (min !== null && max !== null && max > min) {
+    return { min, max }
+  }
+
+  const samples = history.length ? history : value === null ? [0] : [value]
+  const lo = Math.min(...samples, min ?? Number.POSITIVE_INFINITY)
+  const hi = Math.max(...samples, max ?? Number.NEGATIVE_INFINITY)
+  return { min: Math.min(lo, 0), max: hi > lo ? hi : lo + 1 }
+}
+
+function seriesColor(tone: UiTone) {
+  return tone === 'warning' || tone === 'critical' ? toneColor(tone) : 'var(--series-1)'
+}
+
+function thresholdLines(widget: HomeWorkspaceTopicWidget) {
+  const { warningMin, warningMax, criticalMin, criticalMax } = widget.config
+  return [
+    warningMin !== null ? { value: warningMin, tone: 'warning' as const } : null,
+    warningMax !== null ? { value: warningMax, tone: 'warning' as const } : null,
+    criticalMin !== null ? { value: criticalMin, tone: 'critical' as const } : null,
+    criticalMax !== null ? { value: criticalMax, tone: 'critical' as const } : null,
+  ].filter((line): line is { value: number; tone: 'warning' | 'critical' } => line !== null)
+}
+
+/* -------------------------------------------------------------------------- */
+/* Numeric renderers                                                          */
+/* -------------------------------------------------------------------------- */
+
+interface NumericViewProps {
+  value: number | null
+  widget: HomeWorkspaceTopicWidget
+  history: number[]
+}
+
+function ValueView({ value, widget }: NumericViewProps) {
+  const tone = evaluateNumericTone(value, widget)
+  return <FitValue value={formatValue(value, widget.config.decimals)} unit={widget.config.units} tone={tone} />
+}
+
+function StatView({ value, widget, history }: NumericViewProps) {
+  const tone = evaluateNumericTone(value, widget)
+  const [ref, size] = useElementSize<HTMLDivElement>()
+  const showPlot = size.height >= 96
+
   return (
-    <div className="flex h-full min-h-0 items-center justify-center rounded-[18px] border border-dashed border-[var(--border)] bg-[var(--surface)]/44 px-4 py-5 text-center">
-      <div>
-        <div className="text-[0.76rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
-          {title}
+    <div ref={ref} className="flex h-full min-h-0 flex-col gap-2">
+      <div className={cn('min-h-0', showPlot ? 'h-[46%] max-h-[90px]' : 'flex-1')}>
+        <FitValue value={formatValue(value, widget.config.decimals)} unit={widget.config.units} tone={tone} />
+      </div>
+      {showPlot ? (
+        <div className="min-h-0 flex-1">
+          <TimePlot
+            values={history}
+            color={seriesColor(tone)}
+            decimals={widget.config.decimals}
+            minSpan={Math.pow(10, -widget.config.decimals) * 4}
+            thresholds={thresholdLines(widget)}
+          />
         </div>
-        <div className="mt-2 text-[0.84rem] leading-6 text-[var(--text-muted)]">{subtitle}</div>
+      ) : null}
+    </div>
+  )
+}
+
+function PlotView({ value, widget, history }: NumericViewProps) {
+  const tone = evaluateNumericTone(value, widget)
+  return (
+    <div className="flex h-full min-h-0 flex-col gap-1.5">
+      <div className="flex items-baseline gap-2">
+        <span className="hl-value text-[18px] font-medium" style={tone === 'warning' || tone === 'critical' ? { color: toneColor(tone) } : undefined}>
+          {formatValue(value, widget.config.decimals)}
+          {widget.config.units ? <span className="hl-unit">{widget.config.units}</span> : null}
+        </span>
+        <span className="ml-auto text-[10.5px] text-[var(--text-faint)]">{history.length} samples</span>
+      </div>
+      <div className="min-h-0 flex-1">
+        <TimePlot
+          values={history}
+          color={seriesColor(tone)}
+          decimals={widget.config.decimals}
+          minSpan={Math.pow(10, -widget.config.decimals) * 4}
+          domain={{
+            min: widget.config.criticalMin ?? null,
+            max: widget.config.criticalMax ?? null,
+          }}
+          thresholds={thresholdLines(widget)}
+        />
       </div>
     </div>
   )
 }
 
-function NumberView({
-  value,
-  widget,
-  density,
-  topic,
-}: {
-  value: number | null
-  widget: HomeWorkspaceTopicWidget
-  density: WorkspaceWidgetDensity
-  topic: TelemetryTopic | null
-}) {
+function polar(cx: number, cy: number, r: number, deg: number) {
+  const rad = ((deg - 90) * Math.PI) / 180
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }
+}
+
+function arc(cx: number, cy: number, r: number, from: number, to: number) {
+  const start = polar(cx, cy, r, to)
+  const end = polar(cx, cy, r, from)
+  return `M ${start.x} ${start.y} A ${r} ${r} 0 ${to - from <= 180 ? 0 : 1} 0 ${end.x} ${end.y}`
+}
+
+function GaugeView({ value, widget, history }: NumericViewProps) {
   const tone = evaluateNumericTone(value, widget)
-  const accent = toneAccent(tone)
+  const { min, max } = rangeOf(widget, history, value)
+  const ratio = value === null ? 0 : clamp((value - min) / (max - min), 0, 1)
+  const end = -120 + ratio * 240
+  const color = tone === 'neutral' ? 'var(--series-1)' : toneColor(tone)
 
   return (
-    <div className="flex h-full flex-col justify-between gap-3">
-      <div className="text-[0.72rem] uppercase tracking-[0.14em]" style={{ color: accent.color }}>
-        {widgetRendererLabel(resolveRenderer(widget, topic, density))}
+    <div className="relative flex h-full min-h-0 items-center justify-center">
+      <svg viewBox="0 0 100 86" className="h-full max-h-full w-auto max-w-full" aria-hidden="true">
+        <path d={arc(50, 52, 40, -120, 120)} fill="none" stroke="var(--surface-raised)" strokeWidth="7" strokeLinecap="round" />
+        {value !== null ? (
+          <path d={arc(50, 52, 40, -120, Math.max(-119.5, end))} fill="none" stroke={color} strokeWidth="7" strokeLinecap="round" />
+        ) : null}
+        <text x="50" y="54" textAnchor="middle" dominantBaseline="middle" fill="var(--text)" fontSize="17" fontFamily="var(--font-mono)" fontWeight="500">
+          {formatValue(value, widget.config.decimals)}
+        </text>
+        {widget.config.units ? (
+          <text x="50" y="68" textAnchor="middle" fill="var(--text-muted)" fontSize="7.5" fontFamily="var(--font-sans)">
+            {widget.config.units}
+          </text>
+        ) : null}
+        <text x="22" y="84" textAnchor="middle" fill="var(--text-faint)" fontSize="6.5" fontFamily="var(--font-mono)">
+          {min.toFixed(widget.config.decimals)}
+        </text>
+        <text x="78" y="84" textAnchor="middle" fill="var(--text-faint)" fontSize="6.5" fontFamily="var(--font-mono)">
+          {max.toFixed(widget.config.decimals)}
+        </text>
+      </svg>
+    </div>
+  )
+}
+
+function BarView({ value, widget, history }: NumericViewProps) {
+  const tone = evaluateNumericTone(value, widget)
+  const { min, max } = rangeOf(widget, history, value)
+  const ratio = value === null ? 0 : (value - min) / (max - min)
+
+  return (
+    <div className="flex h-full min-h-0 flex-col justify-center gap-2">
+      <div className="min-h-0 flex-1">
+        <FitValue value={formatValue(value, widget.config.decimals)} unit={widget.config.units} tone={tone} />
       </div>
-      <div
-        className={cn(
-          'font-mono leading-none tracking-[-0.05em] text-[var(--text)]',
-          density === 'compact'
-            ? 'text-[clamp(1.15rem,1rem+0.55vw,1.55rem)]'
-            : density === 'large'
-              ? 'text-[clamp(2rem,1.4rem+1.6vw,3.4rem)]'
-              : 'text-[clamp(1.45rem,1.2rem+1vw,2.35rem)]',
-        )}
-      >
-        {formatNumberValue(value, widget.config.decimals, widget.config.units)}
-      </div>
-      <div className="flex items-center justify-between gap-3 text-[0.74rem] leading-6 text-[var(--text-muted)]">
-        <div>{topic?.valueText ?? 'No live value yet.'}</div>
-        <div>{tone}</div>
+      <FillBar ratio={ratio} color={tone === 'neutral' ? 'var(--series-1)' : toneColor(tone)} className="h-2" />
+      <div className="hl-value flex justify-between text-[10.5px] text-[var(--text-faint)]">
+        <span>{min.toFixed(widget.config.decimals)}</span>
+        <span>{max.toFixed(widget.config.decimals)}</span>
       </div>
     </div>
   )
 }
 
-function StatView({
-  value,
-  widget,
-  density,
-  topic,
-}: {
-  value: number | null
-  widget: HomeWorkspaceTopicWidget
-  density: WorkspaceWidgetDensity
-  topic: TelemetryTopic | null
-}) {
-  const tone = evaluateNumericTone(value, widget)
-  const accent = toneAccent(tone)
+/* -------------------------------------------------------------------------- */
+/* Boolean + text renderers                                                   */
+/* -------------------------------------------------------------------------- */
+
+function IndicatorView({ value }: { value: boolean | null }) {
+  const tone: UiTone = value === null ? 'neutral' : value ? 'good' : 'critical'
+  const color = toneColor(tone)
 
   return (
     <div
-      className="grid h-full min-h-0 gap-3 rounded-[18px] border bg-[var(--surface)]/74 px-4 py-4"
-      style={{ borderColor: accent.border }}
+      className="flex h-full min-h-0 items-center justify-center gap-[min(4cqw,10px)] rounded-[7px] border [container-type:size]"
+      style={{
+        borderColor: value === null ? 'var(--border)' : `color-mix(in srgb, ${color} 40%, transparent)`,
+        background: value === null ? 'var(--surface-alt)' : `color-mix(in srgb, ${color} 13%, var(--surface))`,
+      }}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="text-[0.74rem] uppercase tracking-[0.14em]" style={{ color: accent.color }}>
-          {tone}
-        </div>
-        {density !== 'compact' ? (
-          <div className="text-right text-[0.7rem] leading-5 text-[var(--text-muted)]">
-            <div>{topic?.scope ?? 'topic'}</div>
-            <div>{topic?.valueKind ?? 'unknown'}</div>
-          </div>
-        ) : null}
-      </div>
-      <div className="font-mono text-[clamp(1.4rem,1.15rem+1vw,2.5rem)] leading-none tracking-[-0.05em] text-[var(--text)]">
-        {formatNumberValue(value, widget.config.decimals, widget.config.units)}
-      </div>
-      <div className="text-[0.78rem] leading-6 text-[var(--text-muted)]">
-        {density === 'large' ? topic?.key ?? 'Select a topic to bind this widget.' : topic?.valueText ?? '--'}
-      </div>
+      <span
+        className="shrink-0 rounded-full"
+        style={{
+          width: 'clamp(8px, min(18cqh, 9cqw), 18px)',
+          height: 'clamp(8px, min(18cqh, 9cqw), 18px)',
+          background: color,
+          boxShadow: value === null ? undefined : `0 0 14px ${color}`,
+        }}
+      />
+      <span
+        className="font-semibold tracking-[0.04em] uppercase"
+        style={{ fontSize: 'clamp(11px, min(30cqh, 14cqw), 40px)', color: value === null ? 'var(--text-faint)' : 'var(--text)' }}
+      >
+        {value === null ? '—' : value ? 'On' : 'Off'}
+      </span>
     </div>
   )
 }
 
-function GaugeView({
-  value,
-  widget,
-}: {
-  value: number | null
-  widget: HomeWorkspaceTopicWidget
-}) {
-  const tone = evaluateNumericTone(value, widget)
-  const accent = toneAccent(tone)
-  const min = widget.config.criticalMin ?? widget.config.warningMin ?? 0
-  const max = widget.config.criticalMax ?? widget.config.warningMax ?? 100
-  const normalized = value === null ? 0 : clamp((value - min) / Math.max(0.0001, max - min), 0, 1)
-  const angle = -135 + normalized * 270
-  const marker = polarToCartesian(84, 84, 54, angle)
-
-  return (
-    <div className="grid h-full min-h-0 gap-3 lg:grid-cols-[168px_minmax(0,1fr)] lg:items-center">
-      <svg viewBox="0 0 168 120" className="mx-auto w-full max-w-[188px]">
-        <path d={describeArc(84, 84, 54, -135, 135)} fill="none" stroke="var(--border)" strokeWidth="10" opacity="0.42" />
-        <path d={describeArc(84, 84, 54, -135, angle)} fill="none" stroke={accent.color} strokeWidth="10" strokeLinecap="round" />
-        <circle cx={marker.x} cy={marker.y} r="5" fill={accent.color} />
-        <text x="84" y="74" textAnchor="middle" className="fill-[var(--text)] text-[18px] font-semibold">
-          {formatNumberValue(value, widget.config.decimals, widget.config.units)}
-        </text>
-      </svg>
-
-      <div className="grid gap-3">
-        <div className="text-[0.72rem] uppercase tracking-[0.14em]" style={{ color: accent.color }}>
-          Gauge window
-        </div>
-        <div className="rounded-[16px] border border-[var(--border)] bg-[var(--surface)]/72 px-3 py-3 text-[0.78rem] leading-6 text-[var(--text-muted)]">
-          <div>
-            Min {formatNumberValue(min, widget.config.decimals, widget.config.units)}
-          </div>
-          <div>
-            Max {formatNumberValue(max, widget.config.decimals, widget.config.units)}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function BarView({
-  value,
-  widget,
-}: {
-  value: number | null
-  widget: HomeWorkspaceTopicWidget
-}) {
-  const tone = evaluateNumericTone(value, widget)
-  const accent = toneAccent(tone)
-  const min = widget.config.criticalMin ?? widget.config.warningMin ?? 0
-  const max = widget.config.criticalMax ?? widget.config.warningMax ?? 100
-  const fill = value === null ? 0 : clamp(((value - min) / Math.max(0.0001, max - min)) * 100, 0, 100)
-
-  return (
-    <div className="flex h-full flex-col justify-between gap-3">
-      <div className="flex items-end justify-between gap-3">
-        <div className="font-mono text-[clamp(1.35rem,1.12rem+0.9vw,2.2rem)] leading-none tracking-[-0.05em] text-[var(--text)]">
-          {formatNumberValue(value, widget.config.decimals, widget.config.units)}
-        </div>
-        <div className="text-[0.72rem] uppercase tracking-[0.14em]" style={{ color: accent.color }}>
-          {tone}
-        </div>
-      </div>
-      <div className="relative h-5 overflow-hidden rounded-full border border-[var(--border)] bg-[var(--surface)]/76">
-        <div
-          className="absolute inset-y-0 left-0 rounded-full"
-          style={{
-            width: `${fill}%`,
-            background: `linear-gradient(90deg, ${accent.color} 0%, ${accent.soft} 100%)`,
-          }}
-        />
-      </div>
-      <div className="flex items-center justify-between gap-3 text-[0.72rem] leading-6 text-[var(--text-muted)]">
-        <div>{formatNumberValue(min, widget.config.decimals, widget.config.units)}</div>
-        <div>{formatNumberValue(max, widget.config.decimals, widget.config.units)}</div>
-      </div>
-    </div>
-  )
-}
-
-function SparklineView({
-  value,
-  widget,
-  history,
-}: {
-  value: number | null
-  widget: HomeWorkspaceTopicWidget
-  history: WorkspaceHistoryPoint[]
-}) {
-  const tone = evaluateNumericTone(value, widget)
-  const accent = toneAccent(tone)
-  const values = history.length ? history.map((point) => point.value) : value === null ? [0, 0] : [value, value]
-  const min = Math.min(...values)
-  const max = Math.max(...values)
-  const path = buildSparklinePath(history.length > 1 ? history : [{ timestamp: '0', value: min }, { timestamp: '1', value: max }], min, max, 460, 128)
-
-  return (
-    <div className="grid h-full min-h-0 gap-3">
-      <div className="flex items-end justify-between gap-3">
-        <div className="font-mono text-[clamp(1.6rem,1.2rem+1vw,2.45rem)] leading-none tracking-[-0.05em] text-[var(--text)]">
-          {formatNumberValue(value, widget.config.decimals, widget.config.units)}
-        </div>
-        <div className="text-[0.72rem] uppercase tracking-[0.14em]" style={{ color: accent.color }}>
-          {history.length > 1 ? `${history.length} pts` : 'warming up'}
-        </div>
-      </div>
-      <div className="min-h-0 rounded-[18px] border border-[var(--border)] bg-[var(--surface)]/74 px-3 py-3">
-        <svg viewBox="0 0 460 128" className="h-full min-h-[108px] w-full">
-          <path d={path} fill="none" stroke={accent.color} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </div>
-    </div>
-  )
-}
-
-function BooleanButtonView({
-  value,
-  topic,
-  density,
-  preview = false,
-}: {
-  value: boolean | null
-  topic: TelemetryTopic | null
-  density?: WorkspaceWidgetDensity
-  preview?: boolean
-}) {
+function ToggleButtonView({ value, topic }: { value: boolean | null; topic: TelemetryTopic | null }) {
   const [isWriting, setIsWriting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const accent = booleanAccent(value)
-  const compact = density === 'compact'
-  const canWrite =
-    !preview && topic?.isWritable === true && topic.valueKind === 'boolean'
-  const nextValue = value === null ? true : !value
-  const statusLabel = isWriting
-    ? 'Writing...'
-    : value === null
-      ? preview
-        ? 'Toggle'
-        : 'Unknown'
-      : value
-        ? 'On'
-        : 'Off'
-  const background =
-    value === null
-      ? 'linear-gradient(180deg, color-mix(in srgb, var(--surface-alt) 92%, white 8%) 0%, color-mix(in srgb, var(--surface) 88%, black 12%) 100%)'
-      : `linear-gradient(180deg, color-mix(in srgb, ${accent.color} 88%, white 12%) 0%, color-mix(in srgb, ${accent.color} 72%, black 28%) 100%)`
+  const canWrite = topic?.isWritable === true && topic.valueKind === 'boolean'
+  const on = value === true
 
-  const handleToggle = async () => {
+  const toggle = async () => {
     if (!canWrite || !topic || isWriting) {
       return
     }
 
     setIsWriting(true)
     setErrorMessage(null)
-
     try {
-      const response = await writeTelemetryTopicValue(topic.key, 'boolean', nextValue)
+      const response = await writeTelemetryTopicValue(topic.key, 'boolean', value === null ? true : !value)
       if (response.error) {
         setErrorMessage(response.error)
       }
     } catch {
-      setErrorMessage('Unable to write the boolean topic right now.')
+      setErrorMessage('Unable to write this topic right now.')
     } finally {
       setIsWriting(false)
     }
@@ -597,375 +357,123 @@ function BooleanButtonView({
   return (
     <button
       type="button"
-      onClick={handleToggle}
+      onClick={() => void toggle()}
       disabled={!canWrite || isWriting}
-      aria-pressed={value === true}
-      className="h-full w-full text-left disabled:cursor-default"
-      title={errorMessage ?? (!canWrite && !preview ? 'This boolean topic is read-only.' : statusLabel)}
+      aria-pressed={on}
+      title={errorMessage ?? (canWrite ? 'Toggle value' : 'This topic is read-only')}
+      className="flex h-full min-h-0 w-full items-center justify-center gap-3 rounded-[7px] border transition-[background-color,border-color,filter] hover:brightness-110 active:brightness-95 disabled:cursor-not-allowed disabled:opacity-60 [container-type:size]"
+      style={{
+        borderColor: on ? 'color-mix(in srgb, var(--success) 55%, transparent)' : 'var(--border-strong)',
+        background: on ? 'color-mix(in srgb, var(--success) 20%, var(--surface))' : 'var(--surface-alt)',
+      }}
     >
-      <div
-        className={cn(
-          'relative flex h-full min-h-0 flex-col overflow-hidden border px-3 py-3 transition-transform duration-150',
-          compact ? 'rounded-[14px]' : 'rounded-[18px]',
-          canWrite && !isWriting ? 'hover:scale-[0.985] active:scale-[0.97]' : '',
-        )}
+      <span
+        className={cn('relative inline-flex shrink-0 items-center rounded-full border transition-colors')}
         style={{
-          borderColor: accent.border,
-          background,
-          boxShadow:
-            value === null
-              ? 'inset 0 1px 0 rgba(255,255,255,0.05)'
-              : `inset 0 1px 0 rgba(255,255,255,0.16), 0 0 24px ${accent.soft}`,
-          opacity: isWriting ? 0.84 : 1,
+          width: 'clamp(26px, min(36cqh, 18cqw), 44px)',
+          height: 'clamp(15px, min(20cqh, 10cqw), 24px)',
+          borderColor: on ? 'var(--success)' : 'var(--border-strong)',
+          background: on ? 'var(--success)' : 'var(--surface-raised)',
         }}
       >
-        <div className="absolute inset-x-[10%] top-[8%] h-[18%] rounded-full bg-white/18 blur-md" />
-        <div className="flex min-h-0 flex-1 items-center justify-center">
-          <div
-            className="relative inline-flex h-7 w-12 items-center rounded-full border border-white/16 bg-[rgba(15,23,42,0.24)]"
-            aria-hidden="true"
-          >
-            <div
-              className={cn(
-                'absolute h-5 w-5 rounded-full bg-white shadow-[0_6px_18px_rgba(15,23,42,0.28)] transition-all duration-150',
-                value === true ? 'left-[1.35rem]' : 'left-1',
-              )}
-            />
-          </div>
-        </div>
-
-        {!compact ? (
-          <div className="flex items-center justify-between gap-2 text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-white/92">
-            <span>{statusLabel}</span>
-            <span>{errorMessage ? 'retry' : canWrite ? 'toggle' : 'locked'}</span>
-          </div>
-        ) : null}
-      </div>
+        <span
+          className="absolute aspect-square h-[70%] rounded-full transition-[left]"
+          style={{ left: on ? 'calc(100% - 85%)' : '12%', background: on ? '#0d1410' : 'var(--text-muted)' }}
+        />
+      </span>
+      <span className="font-semibold uppercase" style={{ fontSize: 'clamp(11px, min(24cqh, 11cqw), 28px)', color: errorMessage ? 'var(--danger)' : 'var(--text)' }}>
+        {isWriting ? '…' : errorMessage ? 'Error' : value === null ? 'Set' : on ? 'On' : 'Off'}
+      </span>
     </button>
   )
 }
 
-function BooleanLightView({
-  value,
-  density,
-}: {
-  value: boolean | null
-  density?: WorkspaceWidgetDensity
-}) {
-  const accent = booleanAccent(value)
-  const compact = density === 'compact'
-  const fillBackground =
-    value === null
-      ? 'linear-gradient(180deg, color-mix(in srgb, var(--surface-alt) 94%, white 6%) 0%, color-mix(in srgb, var(--surface) 88%, black 12%) 100%)'
-      : `linear-gradient(180deg, color-mix(in srgb, ${accent.color} 92%, white 8%) 0%, color-mix(in srgb, ${accent.color} 76%, black 24%) 100%)`
-
+function TextView({ topic }: { topic: TelemetryTopic | null }) {
   return (
-    <div className="flex h-full min-h-0">
+    <div className="flex h-full min-h-0 items-center [container-type:size]">
       <div
-        className={cn(
-          'relative h-full w-full overflow-hidden border',
-          compact ? 'rounded-[14px]' : 'rounded-[18px]',
-        )}
-        style={{
-          borderColor: accent.border,
-          background: fillBackground,
-          boxShadow:
-            value === null
-              ? 'inset 0 1px 0 rgba(255,255,255,0.05)'
-              : `inset 0 1px 0 rgba(255,255,255,0.16), 0 0 28px ${accent.soft}`,
-        }}
+        className="hl-value line-clamp-3 break-words leading-[1.2]"
+        style={{ fontSize: 'clamp(12px, min(26cqh, 9cqw), 32px)' }}
       >
-        <div className="absolute inset-x-[10%] top-[8%] h-[18%] rounded-full bg-white/20 blur-md" />
-        <div
-          className="absolute inset-x-0 bottom-0 h-[24%]"
-          style={{
-            background:
-              value === null
-                ? 'linear-gradient(180deg, transparent 0%, rgba(15,23,42,0.12) 100%)'
-                : 'linear-gradient(180deg, transparent 0%, rgba(15,23,42,0.22) 100%)',
-          }}
-        />
+        {topic?.valueText || '—'}
       </div>
     </div>
   )
 }
 
-function BooleanPillView({
-  value,
-}: {
-  value: boolean | null
-}) {
-  const accent = booleanAccent(value)
+/* -------------------------------------------------------------------------- */
+/* Presets                                                                    */
+/* -------------------------------------------------------------------------- */
+
+function PosePreset() {
+  const spatial = useSpatialTelemetry()
+  const pose = spatial.pose
+  const freshnessTone: UiTone = !pose.available ? 'neutral' : pose.freshness === 'live' ? 'good' : pose.freshness === 'stale' ? 'warning' : 'critical'
+  const values = [
+    { label: 'X', value: pose.available ? (pose.xMm / 1000).toFixed(3) : '--', unit: 'm' },
+    { label: 'Y', value: pose.available ? (pose.yMm / 1000).toFixed(3) : '--', unit: 'm' },
+    { label: 'θ', value: pose.available ? pose.yawDeg.toFixed(1) : '--', unit: '°' },
+  ]
 
   return (
-    <div className="flex h-full items-center">
-      <div
-        className="inline-flex items-center gap-3 rounded-full border px-4 py-2"
-        style={{
-          borderColor: accent.border,
-          background:
-            value === null
-              ? 'var(--surface)'
-              : `color-mix(in srgb, ${accent.color} 18%, var(--surface) 82%)`,
-        }}
-      >
-        <span className="h-3 w-3 rounded-full" style={{ background: value === null ? 'var(--text-muted)' : accent.color }} />
-        <span className="text-[0.82rem] font-semibold uppercase tracking-[0.16em] text-[var(--text)]">
-          {value === null ? 'Unknown' : value ? 'Active' : 'Inactive'}
+    <div className="flex h-full min-h-0 flex-col justify-between gap-2 [container-type:inline-size]">
+      <div className="grid grid-cols-3 gap-3">
+        {values.map((item) => (
+          <div key={item.label} className="min-w-0">
+            <div className="hl-label">{item.label}</div>
+            <div className="hl-value truncate font-medium leading-tight" style={{ fontSize: 'clamp(15px, 7.4cqw, 30px)' }}>
+              {item.value}
+              <span className="hl-unit">{item.unit}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="flex min-w-0 items-center gap-2 text-[11px] text-[var(--text-faint)]">
+        <StatusDot tone={freshnessTone} />
+        <span className="truncate">
+          {pose.available ? `${pose.source} · ${pose.freshness} · ${pose.frame}` : 'No pose source'}
         </span>
+        <span className="hl-value ml-auto shrink-0">#{pose.sequence}</span>
       </div>
     </div>
   )
 }
 
-function BooleanTileView({
-  value,
-  topic,
-}: {
-  value: boolean | null
-  topic: TelemetryTopic | null
-}) {
-  const accent = booleanAccent(value)
-
-  return (
-    <div
-      className="grid h-full min-h-0 content-between rounded-[18px] border px-4 py-4"
-      style={{
-        borderColor: accent.border,
-        background:
-          value === null
-            ? 'var(--surface)'
-            : `color-mix(in srgb, ${accent.color} 20%, var(--surface) 80%)`,
-      }}
-    >
-      <div className="text-[0.72rem] uppercase tracking-[0.14em]" style={{ color: accent.color }}>
-        Boolean tile
-      </div>
-      <div className="text-[clamp(1.35rem,1.1rem+0.9vw,2.1rem)] font-semibold tracking-[-0.04em] text-[var(--text)]">
-        {value === null ? '--' : value ? 'ENABLED' : 'DISABLED'}
-      </div>
-      <div className="text-[0.78rem] leading-6 text-[var(--text-muted)]">{topic?.valueText ?? 'Waiting for live state.'}</div>
-    </div>
-  )
-}
-
-function BooleanRendererPreview({
-  renderer,
-}: {
-  renderer: WidgetRendererId
-}) {
-  const booleanHelper = 'Bind Telemetry/Robot/Running LED or Telemetry/Robot/Stopped LED.'
-  const buttonHelper = 'Bind /robot/sim/led_enabled or any writable boolean topic.'
-
-  if (renderer === 'boolean-button') {
-    return (
-      <div className="grid h-full min-h-0 content-between gap-3">
-        <BooleanButtonView value={null} topic={null} density="compact" preview />
-        <div className="text-[0.74rem] leading-6 text-[var(--text-muted)]">{buttonHelper}</div>
-      </div>
-    )
-  }
-
-  if (renderer === 'boolean-light') {
-    return <BooleanLightView value={null} density="compact" />
-  }
-
-  if (renderer === 'boolean-pill') {
-    return (
-      <div className="grid h-full min-h-0 content-between gap-3">
-        <BooleanPillView value={null} />
-        <div className="text-[0.74rem] leading-6 text-[var(--text-muted)]">{booleanHelper}</div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="grid h-full min-h-0 content-between gap-3">
-      <BooleanTileView value={null} topic={null} />
-      <div className="text-[0.74rem] leading-6 text-[var(--text-muted)]">{booleanHelper}</div>
-    </div>
-  )
-}
-
-function TextLineView({
-  topic,
-}: {
-  topic: TelemetryTopic | null
-}) {
-  return (
-    <div className="grid h-full min-h-0 gap-3">
-      <div className="font-mono text-[0.95rem] leading-7 text-[var(--text)]">
-        {topic?.valueText ?? '--'}
-      </div>
-      <div className="text-[0.74rem] leading-6 text-[var(--text-muted)]">{topic?.key ?? 'Bind a topic to show text.'}</div>
-    </div>
-  )
-}
-
-function TextTileView({
-  topic,
-}: {
-  topic: TelemetryTopic | null
-}) {
-  return (
-    <div className="grid h-full min-h-0 content-between rounded-[18px] border border-[var(--border)] bg-[var(--surface)]/72 px-4 py-4">
-      <div className="text-[0.72rem] uppercase tracking-[0.14em] text-[var(--text-muted)]">Text readout</div>
-      <div className="break-words text-[clamp(1.1rem,0.95rem+0.7vw,1.85rem)] leading-[1.2] tracking-[-0.03em] text-[var(--text)]">
-        {topic?.valueText ?? '--'}
-      </div>
-      <div className="text-[0.74rem] leading-6 text-[var(--text-muted)]">{topic?.key ?? 'Assign a live topic to this widget.'}</div>
-    </div>
-  )
-}
-
-function raspberryMetricTone(value: number | null, warningThreshold: number, criticalThreshold: number): WorkspaceWidgetTone {
-  if (value === null) {
-    return 'neutral'
-  }
-
-  if (value >= criticalThreshold) {
-    return 'critical'
-  }
-
-  if (value >= warningThreshold) {
-    return 'warning'
-  }
-
+function raspberryTone(value: number | null, warning: number, critical: number): UiTone {
+  if (value === null) return 'neutral'
+  if (value >= critical) return 'critical'
+  if (value >= warning) return 'warning'
   return 'good'
 }
 
-function RaspberryMetricTile({
-  label,
-  value,
-  units,
-  decimals,
-  detail,
-  warningThreshold,
-  criticalThreshold,
-}: {
-  label: string
-  value: number | null
-  units: string
-  decimals: number
-  detail: string
-  warningThreshold: number
-  criticalThreshold: number
-}) {
-  const tone = raspberryMetricTone(value, warningThreshold, criticalThreshold)
-  const accent = metricToneAccent(tone)
-
-  return (
-    <div
-      className="grid gap-2 rounded-[18px] border bg-[var(--surface)]/76 px-4 py-3"
-      style={{ borderColor: accent.border }}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">{label}</div>
-        <div className="text-[0.66rem] font-semibold uppercase tracking-[0.14em]" style={{ color: accent.color }}>
-          {tone === 'neutral' ? 'waiting' : tone}
-        </div>
-      </div>
-      <div className="font-mono text-[clamp(1.35rem,1.18rem+0.72vw,2.1rem)] leading-none tracking-[-0.05em] text-[var(--text)]">
-        {formatCompactMetric(value, decimals, units)}
-      </div>
-      <div className="text-[0.74rem] leading-6 text-[var(--text-muted)]">{detail}</div>
-    </div>
-  )
-}
-
-function RaspberryMonitorPreset({
-  widget,
-  topicMap,
-}: {
-  widget: HomeWorkspaceWidget
-  topicMap: Map<string, TelemetryTopic>
-}) {
-  const density = resolveWidgetDensity(widget)
-  const isTall = widget.h > widget.w
-  const layout =
-    widget.w >= 6 && widget.h <= 3
-      ? 'row'
-      : widget.w <= 3 || widget.h >= 5 || isTall
-        ? 'stack'
-        : 'split'
-  const compact = density === 'compact' || widget.h <= 3
+function RaspberryMonitorPreset({ topicMap }: { topicMap: Map<string, TelemetryTopic> }) {
   const availableTopic = topicMap.get(RASPBERRY_AVAILABLE_TOPIC) ?? null
-  const available =
-    availableTopic?.valueKind === 'boolean' && typeof availableTopic.value === 'boolean'
-      ? availableTopic.value
-      : false
-  const cpuTopic = topicMap.get(RASPBERRY_CPU_TOPIC) ?? null
-  const ramTopic = topicMap.get(RASPBERRY_RAM_TOPIC) ?? null
-  const temperatureTopic = topicMap.get(RASPBERRY_TEMPERATURE_TOPIC) ?? null
+  const available = availableTopic?.valueKind === 'boolean' && availableTopic.value === true
+  const metrics = [
+    { label: 'CPU', value: available ? getNumericTopicValue(topicMap.get(RASPBERRY_CPU_TOPIC) ?? null) : null, unit: '%', max: 100, warn: 75, crit: 90, decimals: 0 },
+    { label: 'RAM', value: available ? getNumericTopicValue(topicMap.get(RASPBERRY_RAM_TOPIC) ?? null) : null, unit: '%', max: 100, warn: 75, crit: 90, decimals: 0 },
+    { label: 'Temp', value: available ? getNumericTopicValue(topicMap.get(RASPBERRY_TEMPERATURE_TOPIC) ?? null) : null, unit: '°C', max: 90, warn: 65, crit: 75, decimals: 1 },
+  ]
 
-  const cpuValue = available ? getNumericTopicValue(cpuTopic) : null
-  const ramValue = available ? getNumericTopicValue(ramTopic) : null
-  const temperatureValue = available ? getNumericTopicValue(temperatureTopic) : null
+  if (!available) {
+    return <EmptyHint title="Raspberry Pi not reporting">Waiting for {RASPBERRY_AVAILABLE_TOPIC}</EmptyHint>
+  }
 
   return (
-    <div className="grid h-full min-h-0 gap-3">
-      <div
-        className={cn(
-          'grid min-h-0 gap-3',
-          layout === 'row' && 'grid-cols-3',
-          layout === 'split' && 'grid-cols-2',
-          layout === 'stack' && 'grid-cols-1',
-        )}
-      >
-        <div className={layout === 'stack' ? undefined : 'min-w-0'}>
-          <RaspberryMetricTile
-            label="CPU Usage"
-            value={cpuValue}
-            units="%"
-            decimals={0}
-            detail={
-              available
-                ? compact
-                  ? cpuTopic?.valueText ?? 'Live'
-                  : cpuTopic?.valueText ?? 'Awaiting sample'
-                : compact
-                  ? 'Baseline'
-                  : 'Awaiting baseline'
-            }
-            warningThreshold={75}
-            criticalThreshold={90}
-          />
-        </div>
-        <div className={layout === 'stack' ? undefined : 'min-w-0'}>
-          <RaspberryMetricTile
-            label="RAM Usage"
-            value={ramValue}
-            units="%"
-            decimals={0}
-            detail={
-              available
-                ? compact
-                  ? ramTopic?.valueText ?? 'Live'
-                  : ramTopic?.valueText ?? 'Awaiting sample'
-                : 'Unavailable'
-            }
-            warningThreshold={75}
-            criticalThreshold={90}
-          />
-        </div>
-        <div className={cn(layout === 'split' && 'col-span-2', layout !== 'stack' && 'min-w-0')}>
-          <RaspberryMetricTile
-            label="Temperature"
-            value={temperatureValue}
-            units="C"
-            decimals={1}
-            detail={
-              available
-                ? compact
-                  ? temperatureTopic?.valueText ?? 'Live'
-                  : temperatureTopic?.valueText ?? 'Awaiting sample'
-                : 'Unavailable'
-            }
-            warningThreshold={65}
-            criticalThreshold={75}
-          />
-        </div>
-      </div>
+    <div className="grid h-full content-center gap-3">
+      {metrics.map((metric) => {
+        const tone = raspberryTone(metric.value, metric.warn, metric.crit)
+        return (
+          <div key={metric.label} className="grid grid-cols-[40px_minmax(0,1fr)_64px] items-center gap-2.5">
+            <span className="hl-label">{metric.label}</span>
+            <FillBar ratio={(metric.value ?? 0) / metric.max} color={toneColor(tone === 'neutral' ? 'good' : tone)} />
+            <span className="hl-value text-right text-[13px]" style={tone === 'warning' || tone === 'critical' ? { color: toneColor(tone) } : undefined}>
+              {metric.value === null ? '--' : metric.value.toFixed(metric.decimals)}
+              <span className="hl-unit">{metric.unit}</span>
+            </span>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -987,50 +495,43 @@ function PresetWorkspaceWidgetRenderer({
   batteryHistory: BatteryHistoryPoint[]
   onUpdateWidget: (widgetId: string, patch: { presetConfig?: Record<string, unknown> }) => void
 }) {
-  if (widget.presetId === 'battery-watch') {
-    return <BatteryPanelBody battery={snapshot.battery} history={batteryHistory} />
+  switch (widget.presetId) {
+    case 'pose':
+      return <PosePreset />
+    case 'battery-watch':
+      return <BatteryPanelBody battery={snapshot.battery} history={batteryHistory} />
+    case 'heading-gyro':
+      return <HeadingPanelBody data={snapshot.heading} variant="widget" />
+    case 'systems-health':
+      return <SystemsHealthPanelBody data={snapshot.systems} />
+    case 'commands':
+      return <CommandsPanelBody data={snapshot.commands} derived={derived} />
+    case 'alerts':
+      return <AlertsPanelBody alerts={alerts} />
+    case 'raspberry-monitor':
+      return <RaspberryMonitorPreset topicMap={topicMap} />
+    case 'camera-stream':
+      return (
+        <HomeWorkspaceCameraStreamWidget
+          selectedFeedId={widget.config.cameraFeedId}
+          discoveredFeeds={snapshot.bridgeStatus?.discoveredCameraFeeds ?? []}
+        />
+      )
+    case 'spatial-view':
+      return <HomeWorkspaceSpatialViewWidget widget={widget} onUpdateWidget={onUpdateWidget} />
+    default:
+      return <EmptyHint title="Unknown panel type" />
   }
-
-  if (widget.presetId === 'heading-gyro') {
-    return <HeadingPanelBody data={snapshot.heading} variant="widget" />
-  }
-
-  if (widget.presetId === 'systems-health') {
-    return <SystemsHealthPanelBody data={snapshot.systems} />
-  }
-
-  if (widget.presetId === 'commands') {
-    return <CommandsPanelBody data={snapshot.commands} derived={derived} />
-  }
-
-  if (widget.presetId === 'alerts') {
-    return <AlertsPanelBody alerts={alerts} />
-  }
-
-  if (widget.presetId === 'raspberry-monitor') {
-    return <RaspberryMonitorPreset widget={widget} topicMap={topicMap} />
-  }
-
-  if (widget.presetId === 'camera-stream') {
-    return (
-      <HomeWorkspaceCameraStreamWidget
-        selectedFeedId={widget.config.cameraFeedId}
-        discoveredFeeds={snapshot.bridgeStatus?.discoveredCameraFeeds ?? []}
-      />
-    )
-  }
-
-  if (widget.presetId === 'spatial-view') {
-    return <HomeWorkspaceSpatialViewWidget widget={widget} onUpdateWidget={onUpdateWidget} />
-  }
-
-  return (
-    <WidgetEmptyState
-      title="Preset unavailable"
-      subtitle="This preset is not registered in the current workspace runtime."
-    />
-  )
 }
+
+/** Presets that draw edge to edge (no body padding). */
+export function isFullBleedWidget(widget: HomeWorkspaceWidget) {
+  return isHomeWorkspacePresetWidget(widget) && (widget.presetId === 'spatial-view' || widget.presetId === 'camera-stream')
+}
+
+/* -------------------------------------------------------------------------- */
+/* Entry point                                                                */
+/* -------------------------------------------------------------------------- */
 
 export function HomeWorkspaceWidgetRenderer({
   widget,
@@ -1042,6 +543,7 @@ export function HomeWorkspaceWidgetRenderer({
   alerts,
   batteryHistory,
   onUpdateWidget,
+  onConfigure,
 }: {
   widget: HomeWorkspaceWidget
   topic: TelemetryTopic | null
@@ -1052,7 +554,10 @@ export function HomeWorkspaceWidgetRenderer({
   alerts: AlertItem[]
   batteryHistory: BatteryHistoryPoint[]
   onUpdateWidget: (widgetId: string, patch: { presetConfig?: Record<string, unknown> }) => void
+  onConfigure?: () => void
 }) {
+  const historyValues = useMemo(() => history.map((point) => point.value), [history])
+
   if (isHomeWorkspacePresetWidget(widget)) {
     return (
       <PresetWorkspaceWidgetRenderer
@@ -1067,78 +572,52 @@ export function HomeWorkspaceWidgetRenderer({
     )
   }
 
-  const density = resolveWidgetDensity(widget)
-
   if (widget.topicKey === null) {
-    if (
-      widget.renderer === 'boolean-button' ||
-      widget.renderer === 'boolean-light' ||
-      widget.renderer === 'boolean-pill' ||
-      widget.renderer === 'boolean-tile'
-    ) {
-      return <BooleanRendererPreview renderer={rendererFallbackForDensity(widget.renderer, 'boolean', density)} />
-    }
-
     return (
-      <WidgetEmptyState
-        title="Unassigned widget"
-        subtitle="Choose a telemetry topic in the configure modal to bind this card to a live data source."
+      <EmptyHint
+        title="No topic selected"
+        action={
+          onConfigure ? (
+            <button type="button" className="hl-btn" onClick={onConfigure}>
+              Choose topic
+            </button>
+          ) : null
+        }
       />
     )
   }
 
   if (!topic) {
     return (
-      <WidgetEmptyState
-        title="Topic unavailable"
-        subtitle="This widget is still bound, but the selected topic is not present in the current live catalog."
-      />
+      <EmptyHint title="Topic not published">
+        <span className="font-mono">{widget.topicKey}</span>
+      </EmptyHint>
     )
   }
 
   const numericValue = getNumericTopicValue(topic)
   const booleanValue = topic.valueKind === 'boolean' && typeof topic.value === 'boolean' ? topic.value : null
-  const activeRenderer = resolveRenderer(widget, topic, density)
+  const renderer = resolveRenderer(widget, topic)
+  const numericProps = { value: numericValue, widget, history: historyValues }
 
-  if (activeRenderer === 'number') {
-    return <NumberView value={numericValue} widget={widget} density={density} topic={topic} />
+  switch (renderer) {
+    case 'number':
+      return <ValueView {...numericProps} />
+    case 'stat':
+      return <StatView {...numericProps} />
+    case 'sparkline':
+      return <PlotView {...numericProps} />
+    case 'gauge':
+      return <GaugeView {...numericProps} />
+    case 'bar':
+      return <BarView {...numericProps} />
+    case 'boolean-button':
+      return <ToggleButtonView value={booleanValue} topic={topic} />
+    case 'boolean-light':
+    case 'boolean-pill':
+    case 'boolean-tile':
+      return <IndicatorView value={booleanValue} />
+    default:
+      return <TextView topic={topic} />
   }
-
-  if (activeRenderer === 'stat') {
-    return <StatView value={numericValue} widget={widget} density={density} topic={topic} />
-  }
-
-  if (activeRenderer === 'gauge') {
-    return <GaugeView value={numericValue} widget={widget} />
-  }
-
-  if (activeRenderer === 'bar') {
-    return <BarView value={numericValue} widget={widget} />
-  }
-
-  if (activeRenderer === 'sparkline') {
-    return <SparklineView value={numericValue} widget={widget} history={history} />
-  }
-
-  if (activeRenderer === 'boolean-button') {
-    return <BooleanButtonView value={booleanValue} topic={topic} density={density} />
-  }
-
-  if (activeRenderer === 'boolean-light') {
-    return <BooleanLightView value={booleanValue} density={density} />
-  }
-
-  if (activeRenderer === 'boolean-pill') {
-    return <BooleanPillView value={booleanValue} />
-  }
-
-  if (activeRenderer === 'boolean-tile') {
-    return <BooleanTileView value={booleanValue} topic={topic} />
-  }
-
-  if (activeRenderer === 'text-tile') {
-    return <TextTileView topic={topic} />
-  }
-
-  return <TextLineView topic={topic} />
 }

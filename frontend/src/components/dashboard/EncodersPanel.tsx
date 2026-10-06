@@ -1,5 +1,5 @@
-import { formatCentimeters, formatMillimeters } from '../../lib/format'
 import type { EncoderData } from '../../types/telemetry'
+import { FillBar, Readout } from '../viz/viz'
 import { DashboardCard } from './DashboardCard'
 
 interface EncodersPanelProps {
@@ -7,55 +7,35 @@ interface EncodersPanelProps {
 }
 
 export function EncodersPanel({ data }: EncodersPanelProps) {
-  const leftRightDelta = data.leftMm - data.rightMm
+  const delta = data.leftMm - data.rightMm
+  const scale = Math.max(Math.abs(data.leftMm), Math.abs(data.rightMm), 1)
 
   return (
-    <DashboardCard title="Encoders / Motion" subtitle="wheel and odometry counters" accent="primary" className="min-h-[230px]">
-      <div className="grid h-full gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
-        <div className="grid gap-2.5 sm:grid-cols-2">
+    <DashboardCard title="Encoders" subtitle="wheel odometry">
+      <div className="grid h-full content-start gap-4">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
+          <Readout label="Left" value={data.leftMm.toFixed(0)} unit="mm" size="sm" />
+          <Readout label="Right" value={data.rightMm.toFixed(0)} unit="mm" size="sm" />
+          <Readout label="Back" value={data.backMm.toFixed(0)} unit="mm" size="sm" />
+          <Readout label="Forward" value={data.forwardDistanceCm.toFixed(1)} unit="cm" size="sm" />
+        </div>
+        <div className="grid gap-2">
           {[
-            ['Encoder Left', formatMillimeters(data.leftMm)],
-            ['Encoder Right', formatMillimeters(data.rightMm)],
-            ['Encoder Back', formatMillimeters(data.backMm)],
-            ['Forward Distance', formatCentimeters(data.forwardDistanceCm)],
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-alt)]/80 px-3 py-3">
-              <div className="text-[0.67rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">{label}</div>
-              <div className="mt-1.5 font-mono text-[0.95rem] text-[var(--text)]">{value}</div>
+            ['Left', data.leftMm, 'var(--series-1)'],
+            ['Right', data.rightMm, 'var(--series-2)'],
+          ].map(([label, value, color]) => (
+            <div key={label as string} className="grid grid-cols-[44px_minmax(0,1fr)] items-center gap-2">
+              <span className="hl-label">{label}</span>
+              <FillBar ratio={Math.abs(Number(value)) / scale} color={String(color)} />
             </div>
           ))}
-        </div>
-
-        <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-alt)]/80 px-3.5 py-3">
-          <div className="text-[0.67rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
-            Differential balance
+          <div className="flex items-baseline justify-between">
+            <span className="hl-label">Left − right</span>
+            <span className="hl-value text-[12.5px]">
+              {delta >= 0 ? '+' : ''}
+              {delta.toFixed(0)} mm
+            </span>
           </div>
-          <div className="mt-3 grid gap-3">
-            {[
-              ['Left track', data.leftMm, 'var(--primary)'],
-              ['Right track', data.rightMm, 'var(--info)'],
-            ].map(([label, value, color]) => (
-              <div key={label}>
-                <div className="mb-1.5 flex items-center justify-between text-[0.8rem]">
-                  <span className="text-[var(--text-muted)]">{label}</span>
-                  <span className="font-mono text-[var(--text)]">{formatMillimeters(Number(value))}</span>
-                </div>
-                <div className="h-2.5 rounded-full bg-[var(--background-subtle)]">
-                  <div
-                    className="h-2.5 rounded-full"
-                    style={{
-                      background: String(color),
-                      width: `${Math.min(100, (Number(value) / Math.max(data.leftMm, data.rightMm, 1)) * 100)}%`,
-                    }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-          <p className="mt-3 text-[0.8rem] leading-5 text-[var(--text-muted)]">
-            Left/right delta is <span className="font-mono text-[var(--text)]">{formatMillimeters(leftRightDelta)}</span>,
-            useful for spotting bias during corridor tracking.
-          </p>
         </div>
       </div>
     </DashboardCard>

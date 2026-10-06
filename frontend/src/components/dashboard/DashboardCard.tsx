@@ -1,77 +1,65 @@
-import type { CSSProperties, PropsWithChildren, ReactNode } from 'react'
+import { useState, type PropsWithChildren, type ReactNode } from 'react'
 import { cn } from '../../lib/cn'
 
 type AccentTone = 'primary' | 'accent' | 'success' | 'warning' | 'danger' | 'info'
 
-const accentMap: Record<AccentTone, string> = {
-  primary: 'var(--primary)',
-  accent: 'var(--accent)',
-  success: 'var(--success)',
-  warning: 'var(--warning)',
-  danger: 'var(--danger)',
-  info: 'var(--info)',
-}
-
 interface DashboardCardProps extends PropsWithChildren {
   title: string
   subtitle?: string
+  /** Kept for API compatibility; panels no longer carry decorative accents. */
   accent?: AccentTone
   headerSlot?: ReactNode
   className?: string
   bodyClassName?: string
+  /** Lets the operator fold the panel down to its header. */
+  collapsible?: boolean
+  defaultOpen?: boolean
 }
 
 export function DashboardCard({
   title,
   subtitle,
-  accent = 'primary',
   headerSlot,
   className,
   bodyClassName,
+  collapsible = false,
+  defaultOpen = true,
   children,
 }: DashboardCardProps) {
-  const accentColor = accentMap[accent]
-  const accentGlow = `linear-gradient(180deg, color-mix(in srgb, ${accentColor} 14%, transparent) 0%, transparent 100%)`
+  const [open, setOpen] = useState(defaultOpen)
+  const expanded = !collapsible || open
 
   return (
-    <section
-      className={cn(
-        'relative flex h-full min-h-0 flex-col overflow-hidden rounded-[24px] border border-[var(--border-strong)]/75 bg-[color-mix(in_srgb,var(--surface)_90%,var(--background)_10%)] backdrop-blur-md',
-        className,
-      )}
-      style={{ boxShadow: 'var(--card-shadow)' }}
-    >
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 h-20 opacity-80"
-        style={{ background: accentGlow } satisfies CSSProperties}
-      />
-
-      <header className="relative z-[1] flex items-start justify-between gap-3 border-b border-[var(--border)]/85 px-4 py-3.5 xl:px-5">
-        <div className="min-w-0">
-          <div className="mb-2 flex items-center gap-2">
-            <span
-              className="h-2.5 w-2.5 shrink-0 rounded-full"
-              style={{ background: accentColor } satisfies CSSProperties}
-            />
-            {subtitle ? (
-              <p className="text-[0.69rem] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                {subtitle}
-              </p>
-            ) : (
-              <span
-                className="h-px w-10 rounded-full opacity-80"
-                style={{ background: accentColor } satisfies CSSProperties}
-              />
-            )}
-          </div>
-          <h2 className="text-[clamp(0.98rem,0.9rem+0.28vw,1.22rem)] font-semibold tracking-[-0.02em] text-[var(--text)]">
-            {title}
-          </h2>
-        </div>
-        {headerSlot}
+    <section className={cn('hl-panel', expanded ? 'h-full' : 'h-auto', className)}>
+      <header className={cn('hl-panel-header', !expanded && 'border-b-0')}>
+        {collapsible ? (
+          <button
+            type="button"
+            onClick={() => setOpen((value) => !value)}
+            aria-expanded={open}
+            className="-ml-1 flex min-w-0 flex-1 items-center gap-1.5 text-left"
+          >
+            <svg
+              viewBox="0 0 12 12"
+              width="10"
+              height="10"
+              aria-hidden="true"
+              className={cn('shrink-0 text-[var(--text-faint)] transition-transform', open && 'rotate-90')}
+            >
+              <path d="M4 2.5 7.5 6 4 9.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <h2 className="hl-panel-title">{title}</h2>
+            {subtitle ? <span className="hl-panel-meta hidden font-sans sm:inline">{subtitle}</span> : null}
+          </button>
+        ) : (
+          <>
+            <h2 className="hl-panel-title">{title}</h2>
+            {subtitle ? <span className="hl-panel-meta hidden font-sans sm:inline">{subtitle}</span> : null}
+          </>
+        )}
+        <div className="ml-auto flex shrink-0 items-center gap-1.5">{headerSlot}</div>
       </header>
-      <div className={cn('relative z-[1] min-h-0 flex-1 px-4 py-4 xl:px-5', bodyClassName)}>{children}</div>
+      {expanded ? <div className={cn('relative min-h-0 flex-1 p-3', bodyClassName)}>{children}</div> : null}
     </section>
   )
 }

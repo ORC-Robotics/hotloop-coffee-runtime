@@ -1,45 +1,22 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { DiscoveredCameraFeed } from '../../types/telemetry'
 import { useDashboardPreferences } from '../../preferences/useDashboardPreferences'
-import type {
-  CameraFeedConfig,
-  CameraFeedKind,
-  DiagnosticsLayoutId,
-  OverviewLayoutId,
-  SystemsLayoutId,
-  UiScaleId,
-} from '../../preferences/dashboardPreferencesStore'
+import type { CameraFeedConfig, CameraFeedKind, UiScaleId } from '../../preferences/dashboardPreferencesStore'
 import { useTheme } from '../../hooks/useTheme'
 import { cn } from '../../lib/cn'
 import { themes, type ThemeId } from '../../theme/themes'
-import { StatusBadge } from './StatusBadge'
+import { CloseIcon, SettingsIcon } from '../shell/icons'
+import { StatusDot } from '../viz/viz'
 
-const uiScaleOptions: Array<{ id: UiScaleId; label: string; hint: string }> = [
-  { id: 'compact', label: 'Compact', hint: 'Fit more telemetry in the same viewport.' },
-  { id: 'standard', label: 'Standard', hint: 'Balanced size for everyday operation.' },
-  { id: 'large', label: 'Large', hint: 'Bigger text for pit tuning and manual tests.' },
-]
-
-const overviewLayoutOptions: Array<{ id: OverviewLayoutId; label: string }> = [
-  { id: 'balanced', label: 'Balanced' },
-  { id: 'pilot', label: 'Pilot Focus' },
-  { id: 'dataWall', label: 'Data Wall' },
-]
-
-const diagnosticsLayoutOptions: Array<{ id: DiagnosticsLayoutId; label: string }> = [
-  { id: 'split', label: 'Split' },
-  { id: 'deepDive', label: 'Deep Dive' },
-]
-
-const systemsLayoutOptions: Array<{ id: SystemsLayoutId; label: string }> = [
-  { id: 'wide', label: 'Wide' },
-  { id: 'stacked', label: 'Stacked' },
-  { id: 'cameraFocus', label: 'Camera Focus' },
+const uiScaleOptions: Array<{ id: UiScaleId; label: string }> = [
+  { id: 'compact', label: 'Compact' },
+  { id: 'standard', label: 'Standard' },
+  { id: 'large', label: 'Large' },
 ]
 
 const cameraKinds: Array<{ id: CameraFeedKind; label: string }> = [
-  { id: 'mjpeg', label: 'MJPEG / stream' },
+  { id: 'mjpeg', label: 'MJPEG stream' },
   { id: 'snapshot', label: 'Snapshot / JPEG' },
   { id: 'video', label: 'Video / MP4' },
 ]
@@ -52,81 +29,45 @@ function hostLabel(url: string) {
   }
 }
 
-function GearIcon() {
+function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 fill-none stroke-current" strokeWidth="1.7">
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M10.325 4.317a1.724 1.724 0 0 1 3.35 0 1.724 1.724 0 0 0 2.574 1.066 1.724 1.724 0 0 1 2.48 2.48 1.724 1.724 0 0 0 1.065 2.574 1.724 1.724 0 0 1 0 3.35 1.724 1.724 0 0 0-1.066 2.574 1.724 1.724 0 0 1-2.48 2.48 1.724 1.724 0 0 0-2.574 1.065 1.724 1.724 0 0 1-3.35 0 1.724 1.724 0 0 0-2.574-1.066 1.724 1.724 0 0 1-2.48-2.48 1.724 1.724 0 0 0-1.065-2.574 1.724 1.724 0 0 1 0-3.35 1.724 1.724 0 0 0 1.066-2.574 1.724 1.724 0 0 1 2.48-2.48 1.724 1.724 0 0 0 2.574-1.065Z"
-      />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-    </svg>
+    <section className="grid gap-3 border-b border-[var(--border)] py-4 last:border-b-0">
+      <div>
+        <h3 className="text-[13px] font-semibold">{title}</h3>
+        {description ? <p className="mt-0.5 text-[11.5px] text-[var(--text-faint)]">{description}</p> : null}
+      </div>
+      {children}
+    </section>
   )
 }
 
-function ThemeSwatch({
-  id,
-  active,
-  onClick,
-}: {
-  id: ThemeId
-  active: boolean
-  onClick: () => void
-}) {
+function ThemeSwatch({ id, active, onClick }: { id: ThemeId; active: boolean; onClick: () => void }) {
   const theme = themes[id]
+  const t = theme.tokens
 
   return (
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={cn(
-        'grid gap-2 rounded-[20px] border p-3 text-left transition-colors',
-        active
-          ? 'border-[var(--primary)] bg-[var(--primary-soft)]/72'
-          : 'border-[var(--border)] bg-[var(--surface-alt)]/76 hover:bg-[var(--surface-alt)]',
+        'grid gap-2 rounded-[9px] border p-2 text-left transition-colors',
+        active ? 'border-[var(--primary)] bg-[var(--primary-soft)]' : 'border-[var(--border)] hover:border-[var(--border-strong)]',
       )}
     >
-      <div className="flex gap-2">
-        {[theme.tokens.bgPrimary, theme.tokens.bgSurface, theme.tokens.accentPrimary, theme.tokens.accentSecondary].map((color) => (
-          <span key={color} className="h-7 flex-1 rounded-full border border-[var(--border)]/60" style={{ backgroundColor: color }} />
-        ))}
+      <div className="flex h-12 overflow-hidden rounded-[6px] border border-[var(--border)]" style={{ background: t.background }}>
+        <div className="w-3" style={{ background: t.surface }} />
+        <div className="flex flex-1 flex-col justify-end gap-1 p-1.5">
+          <div className="h-1.5 w-2/3 rounded-full" style={{ background: t.primary }} />
+          <div className="flex gap-1">
+            {[t.series1, t.series2, t.series3, t.success, t.danger].map((color) => (
+              <span key={color} className="h-1.5 flex-1 rounded-full" style={{ background: color }} />
+            ))}
+          </div>
+        </div>
       </div>
-      <div className="text-[0.8rem] font-semibold text-[var(--text)]">{theme.label}</div>
-      <div className="text-[0.74rem] leading-5 text-[var(--text-muted)]">{theme.description}</div>
+      <div className="text-[12px] font-medium">{theme.label}</div>
     </button>
-  )
-}
-
-function LabeledSelect<T extends string>({
-  label,
-  value,
-  options,
-  onChange,
-  disabled = false,
-}: {
-  label: string
-  value: T
-  options: Array<{ id: T; label: string }>
-  onChange: (value: T) => void
-  disabled?: boolean
-}) {
-  return (
-    <label className="grid gap-2">
-      <span className="text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">{label}</span>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value as T)}
-        disabled={disabled}
-        className="rounded-[16px] border border-[var(--border)] bg-[var(--surface-alt)]/82 px-3 py-3 text-[0.84rem] text-[var(--text)] outline-none transition-colors focus:border-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {options.map((option) => (
-          <option key={option.id} value={option.id}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
   )
 }
 
@@ -138,66 +79,54 @@ function CameraFeedEditor({
   onChange: (patch: Partial<CameraFeedConfig>) => void
 }) {
   return (
-    <div className="grid gap-3 rounded-[20px] border border-[var(--border)] bg-[var(--surface-alt)]/76 p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <div className="text-[0.76rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
-            {feed.label}
-          </div>
-          <div className="mt-1 text-[0.8rem] text-[var(--text-muted)]">
-            Use a robot MJPEG URL, a snapshot endpoint or a direct video file.
-          </div>
-        </div>
-
-        <label className="flex items-center gap-2 text-[0.78rem] text-[var(--text)]">
+    <div className="hl-well grid gap-2.5 p-3">
+      <div className="flex items-center gap-2">
+        <input
+          value={feed.label}
+          onChange={(event) => onChange({ label: event.target.value })}
+          className="hl-input h-7 flex-1"
+          aria-label="Feed name"
+        />
+        <label className="flex shrink-0 items-center gap-1.5 text-[12px] text-[var(--text-secondary)]">
           <input
             type="checkbox"
             checked={feed.enabled}
             onChange={(event) => onChange({ enabled: event.target.checked })}
-            className="h-4 w-4 accent-[var(--primary)]"
+            className="h-3.5 w-3.5 accent-[var(--primary)]"
           />
           Enabled
         </label>
       </div>
-
-      <label className="grid gap-2">
-        <span className="text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">Label</span>
-        <input
-          value={feed.label}
-          onChange={(event) => onChange({ label: event.target.value })}
-          className="rounded-[16px] border border-[var(--border)] bg-[var(--surface)]/82 px-3 py-3 text-[0.84rem] text-[var(--text)] outline-none transition-colors focus:border-[var(--primary)]"
-        />
-      </label>
-
-      <label className="grid gap-2">
-        <span className="text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">Stream URL</span>
-        <input
-          value={feed.url}
-          onChange={(event) => onChange({ url: event.target.value })}
-          placeholder="http://10.12.34.11:1181/stream.mjpg"
-          className="rounded-[16px] border border-[var(--border)] bg-[var(--surface)]/82 px-3 py-3 text-[0.84rem] text-[var(--text)] outline-none transition-colors focus:border-[var(--primary)]"
-        />
-      </label>
-
-      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,160px)]">
-        <LabeledSelect
-          label="Feed type"
+      <input
+        value={feed.url}
+        onChange={(event) => onChange({ url: event.target.value })}
+        placeholder="http://10.12.34.11:1181/stream.mjpg"
+        className="hl-input font-mono text-[12px]"
+        aria-label="Stream URL"
+      />
+      <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-2">
+        <select
           value={feed.kind}
-          options={cameraKinds}
-          onChange={(value) => onChange({ kind: value })}
+          onChange={(event) => onChange({ kind: event.target.value as CameraFeedKind })}
+          className="hl-input"
+          aria-label="Feed type"
+        >
+          {cameraKinds.map((kind) => (
+            <option key={kind.id} value={kind.id}>
+              {kind.label}
+            </option>
+          ))}
+        </select>
+        <input
+          type="number"
+          value={feed.refreshMs}
+          min={250}
+          step={50}
+          onChange={(event) => onChange({ refreshMs: Number(event.target.value) || 900 })}
+          className="hl-input font-mono"
+          aria-label="Snapshot refresh in milliseconds"
+          title="Snapshot refresh (ms)"
         />
-
-        <label className="grid gap-2">
-          <span className="text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">Snapshot refresh</span>
-          <input
-            type="number"
-            value={feed.refreshMs}
-            min={250}
-            step={50}
-            onChange={(event) => onChange({ refreshMs: Number(event.target.value) || 900 })}
-            className="rounded-[16px] border border-[var(--border)] bg-[var(--surface)]/82 px-3 py-3 text-[0.84rem] text-[var(--text)] outline-none transition-colors focus:border-[var(--primary)]"
-          />
-        </label>
       </div>
     </div>
   )
@@ -210,223 +139,99 @@ export function DashboardSettingsLauncher({
 }) {
   const [open, setOpen] = useState(false)
   const { themeId, setThemeId } = useTheme()
-  const {
-    preferences,
-    setLayoutSetting,
-    resetLayout,
-    updateCameraFeed,
-  } = useDashboardPreferences()
-
-  const layoutLocked = preferences.layout.layoutLocked
+  const { preferences, setLayoutSetting, updateCameraFeed } = useDashboardPreferences()
   const canPortal = typeof document !== 'undefined'
 
   useEffect(() => {
-    if (!open || !canPortal) {
+    if (!open) {
       return
     }
 
-    const previousOverflow = document.body.style.overflow
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setOpen(false)
       }
     }
 
-    document.body.style.overflow = 'hidden'
     window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [open])
 
-    return () => {
-      document.body.style.overflow = previousOverflow
-      window.removeEventListener('keydown', onKeyDown)
-    }
-  }, [canPortal, open])
-
-  const settingsOverlay =
+  const overlay =
     open && canPortal
       ? createPortal(
           <div className="fixed inset-0 z-[120]">
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="absolute inset-0 h-full w-full bg-black/34 backdrop-blur-[3px]"
-              aria-label="Close settings overlay"
+              className="absolute inset-0 h-full w-full bg-black/45"
+              aria-label="Close settings"
             />
-
-            <aside className="absolute inset-y-0 right-0 z-[121] flex w-full max-w-[560px] flex-col border-l border-[var(--border)] bg-[var(--surface)]/96 p-4 backdrop-blur-md" style={{ boxShadow: 'var(--card-shadow-strong)' }}>
-              <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] pb-4">
-                <div>
-                  <div className="text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                    Dashboard Settings
-                  </div>
-                  <div className="mt-1 text-[1.2rem] font-semibold tracking-[-0.04em] text-[var(--text)]">
-                    Themes, layout scale and camera slots
-                  </div>
-                  <div className="mt-1 text-[0.82rem] leading-6 text-[var(--text-muted)]">
-                    Everything here is saved locally for this operator station.
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  className="rounded-full border border-[var(--border)] bg-[var(--surface-alt)]/76 px-4 py-2 text-[0.74rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-alt)]"
-                >
-                  Close
+            <aside
+              className="absolute inset-y-0 right-0 z-[121] flex w-full max-w-[460px] flex-col border-l border-[var(--border)] bg-[var(--surface)] shadow-[var(--card-shadow-strong)]"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Settings"
+            >
+              <header className="flex h-12 items-center justify-between border-b border-[var(--border)] px-4">
+                <h2 className="text-[14px] font-semibold">Settings</h2>
+                <button type="button" onClick={() => setOpen(false)} className="hl-btn hl-btn-ghost hl-btn-icon" aria-label="Close settings">
+                  <CloseIcon width="16" height="16" />
                 </button>
-              </div>
+              </header>
 
-              <div className="mt-4 flex-1 space-y-4 overflow-auto pr-1">
-                <section className="grid gap-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                        Appearance
-                      </div>
-                      <div className="mt-1 text-[0.9rem] text-[var(--text)]">Switch the whole dashboard mood without exposing the selector in the top bar.</div>
-                    </div>
-                    <StatusBadge tone="info" label={themes[themeId].label} />
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
+              <div className="min-h-0 flex-1 overflow-y-auto px-4">
+                <Section title="Theme">
+                  <div className="grid grid-cols-3 gap-2">
                     {(Object.keys(themes) as ThemeId[]).map((id) => (
                       <ThemeSwatch key={id} id={id} active={themeId === id} onClick={() => setThemeId(id)} />
                     ))}
                   </div>
-                </section>
+                </Section>
 
-                <section className="grid gap-3">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <div className="text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                        Layout Settings
-                      </div>
-                      <div className="mt-1 text-[0.9rem] text-[var(--text)]">
-                        The factory layout is the only baseline. Fine tune the pages directly and reset when needed.
-                      </div>
-                    </div>
-                    <label className="flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-alt)]/76 px-3 py-2 text-[0.76rem] text-[var(--text)]">
-                      <input
-                        type="checkbox"
-                        checked={layoutLocked}
-                        onChange={(event) => setLayoutSetting('layoutLocked', event.target.checked)}
-                        className="h-4 w-4 accent-[var(--primary)]"
-                      />
-                      Lock layout
-                    </label>
-                  </div>
-
-                  <div className="grid gap-3 rounded-[20px] border border-[var(--border)] bg-[var(--surface-alt)]/76 p-4 md:grid-cols-2">
-                    <LabeledSelect
-                      label="Data scale"
-                      value={preferences.layout.uiScale}
-                      options={uiScaleOptions.map(({ id, label }) => ({ id, label }))}
-                      onChange={(value) => setLayoutSetting('uiScale', value)}
-                      disabled={layoutLocked}
-                    />
-                    <LabeledSelect
-                      label="Overview layout"
-                      value={preferences.layout.overviewLayout}
-                      options={overviewLayoutOptions}
-                      onChange={(value) => setLayoutSetting('overviewLayout', value)}
-                      disabled={layoutLocked}
-                    />
-                    <LabeledSelect
-                      label="Diagnostics layout"
-                      value={preferences.layout.diagnosticsLayout}
-                      options={diagnosticsLayoutOptions}
-                      onChange={(value) => setLayoutSetting('diagnosticsLayout', value)}
-                      disabled={layoutLocked}
-                    />
-                    <LabeledSelect
-                      label="Systems layout"
-                      value={preferences.layout.systemsLayout}
-                      options={systemsLayoutOptions}
-                      onChange={(value) => setLayoutSetting('systemsLayout', value)}
-                      disabled={layoutLocked}
-                    />
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-[20px] border border-[var(--border)] bg-[var(--surface-alt)]/76 p-4">
-                    <label className="flex items-center gap-3 text-[0.84rem] text-[var(--text)]">
-                      <input
-                        type="checkbox"
-                        checked={preferences.layout.showCameraInSystems}
-                        onChange={(event) => setLayoutSetting('showCameraInSystems', event.target.checked)}
-                        disabled={layoutLocked}
-                        className="h-4 w-4 accent-[var(--primary)]"
-                      />
-                      Show camera viewport inside the Systems page when a feed exists
-                    </label>
-
-                    <button
-                      type="button"
-                      onClick={resetLayout}
-                      className="rounded-full border border-[var(--border)] bg-[var(--surface)]/76 px-4 py-2 text-[0.74rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)] transition-colors hover:bg-[var(--surface)]"
-                    >
-                      Reset to factory
-                    </button>
-                  </div>
-                </section>
-
-                <section className="grid gap-3">
-                  <div>
-                    <div className="text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                      Camera Feeds
-                    </div>
-                    <div className="mt-1 text-[0.9rem] text-[var(--text)]">
-                      O ORION agora procura streams publicados pelo robo via `CameraPublisher`. Os campos manuais continuam disponiveis como fallback ou para adicionar feeds extras.
-                    </div>
-                  </div>
-
-                  {discoveredFeeds.length ? (
-                    <div className="grid gap-3 rounded-[20px] border border-[var(--border)] bg-[var(--surface-alt)]/76 p-4">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <div className="text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
-                            Robot-published feeds
-                          </div>
-                          <div className="mt-1 text-[0.82rem] leading-6 text-[var(--text-muted)]">
-                            Feeds detectados automaticamente no NetworkTables.
-                          </div>
-                        </div>
-                        <StatusBadge tone="good" label={`${discoveredFeeds.length} detected`} />
-                      </div>
-
-                      <div className="grid gap-2">
-                        {discoveredFeeds.map((feed) => (
-                          <div
-                            key={feed.id}
-                            className="grid gap-2 rounded-[16px] border border-[var(--border)] bg-[var(--surface)]/82 px-3 py-3"
-                          >
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <div className="text-[0.82rem] font-semibold text-[var(--text)]">{feed.label}</div>
-                              <div className="flex flex-wrap gap-2">
-                                <StatusBadge tone={feed.connected ? 'good' : 'warning'} label={feed.connected ? 'online' : 'published'} />
-                                <StatusBadge tone="neutral" label={feed.kind} />
-                              </div>
-                            </div>
-                            <div className="text-[0.78rem] text-[var(--text-muted)]">{hostLabel(feed.url)}</div>
-                            <div className="truncate text-[0.76rem] text-[var(--text-muted)]">{feed.url}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="rounded-[20px] border border-dashed border-[var(--border)] bg-[var(--surface-alt)]/76 px-4 py-4 text-[0.82rem] leading-6 text-[var(--text-muted)]">
-                      Nenhum feed automatico foi encontrado ainda. Assim que o robo publicar uma camera pelo CameraServer, ela deve aparecer aqui sem precisar colar URL.
-                    </div>
-                  )}
-
-                  <div className="space-y-3">
-                    {preferences.cameraFeeds.map((feed) => (
-                      <CameraFeedEditor
-                        key={feed.id}
-                        feed={feed}
-                        onChange={(patch) => updateCameraFeed(feed.id, patch)}
-                      />
+                <Section title="Interface size" description="Scales the whole console — useful on small laptops or far-away screens.">
+                  <div className="hl-seg w-fit" role="group" aria-label="Interface size">
+                    {uiScaleOptions.map((option) => (
+                      <button
+                        key={option.id}
+                        type="button"
+                        className="hl-seg-item"
+                        aria-pressed={preferences.layout.uiScale === option.id}
+                        onClick={() => setLayoutSetting('uiScale', option.id)}
+                      >
+                        {option.label}
+                      </button>
                     ))}
                   </div>
-                </section>
+                </Section>
+
+                <Section
+                  title="Camera feeds"
+                  description="Streams published by the robot (CameraPublisher / CameraServer) appear automatically. Manual feeds below are a fallback or extra sources."
+                >
+                  {discoveredFeeds.length ? (
+                    <ul className="hl-well divide-y divide-[var(--border)]">
+                      {discoveredFeeds.map((feed) => (
+                        <li key={feed.id} className="flex items-center gap-2.5 px-3 py-2">
+                          <StatusDot tone={feed.connected ? 'good' : 'warning'} />
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-[12.5px]">{feed.label}</div>
+                            <div className="truncate font-mono text-[11px] text-[var(--text-faint)]">{hostLabel(feed.url)}</div>
+                          </div>
+                          <span className="text-[11px] text-[var(--text-faint)]">{feed.kind}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="hl-well px-3 py-2.5 text-[12px] text-[var(--text-faint)]">No robot-published feeds detected yet.</p>
+                  )}
+
+                  <div className="grid gap-2">
+                    {preferences.cameraFeeds.map((feed) => (
+                      <CameraFeedEditor key={feed.id} feed={feed} onChange={(patch) => updateCameraFeed(feed.id, patch)} />
+                    ))}
+                  </div>
+                </Section>
               </div>
             </aside>
           </div>,
@@ -439,12 +244,14 @@ export function DashboardSettingsLauncher({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex h-10 w-10 items-center justify-center rounded-[14px] border border-[var(--border)] bg-[var(--surface-alt)]/80 text-[var(--text-muted)] transition-colors hover:bg-[var(--surface)] hover:text-[var(--text)]"
-        aria-label="Open dashboard settings"
+        className="flex w-[54px] flex-col items-center gap-1 rounded-[9px] py-2 text-[10.5px] font-medium text-[var(--text-faint)] transition-colors hover:bg-[var(--surface)] hover:text-[var(--text-secondary)]"
+        aria-label="Open settings"
+        title="Settings"
       >
-        <GearIcon />
+        <SettingsIcon />
+        Settings
       </button>
-      {settingsOverlay}
+      {overlay}
     </>
   )
 }

@@ -1,3 +1,4 @@
+import { BATTERY_CRITICAL_V, BATTERY_WARNING_V } from './robotThresholds'
 import type {
   AlertItem,
   AlertSeverity,
@@ -66,7 +67,7 @@ export function deriveAlerts(snapshot: TelemetrySnapshot): AlertItem[] {
     })
   }
 
-  if (snapshot.battery.voltageV > 0 && snapshot.battery.voltageV < 11.0) {
+  if (snapshot.battery.voltageV > 0 && snapshot.battery.voltageV < BATTERY_CRITICAL_V) {
     alerts.push({
       id: 'battery-critical',
       severity: 'critical',
@@ -74,7 +75,7 @@ export function deriveAlerts(snapshot: TelemetrySnapshot): AlertItem[] {
       title: 'Battery sag critical',
       message: `Battery voltage dropped to ${snapshot.battery.voltageV.toFixed(2)} V.`,
     })
-  } else if (snapshot.battery.voltageV > 0 && snapshot.battery.voltageV < 11.8) {
+  } else if (snapshot.battery.voltageV > 0 && snapshot.battery.voltageV < BATTERY_WARNING_V) {
     alerts.push({
       id: 'battery-warning',
       severity: 'warning',

@@ -86,8 +86,8 @@ export const HOME_WORKSPACE_V2_STORAGE_KEY = 'orion.home-workspace.v2'
 export const HOME_WORKSPACE_LEGACY_STORAGE_KEY = 'orion.home-workspace.v1'
 export const HOME_WORKSPACE_MAX_PAGES = 8
 export const HOME_WORKSPACE_GRID_COLUMNS = 12
-export const HOME_WORKSPACE_GRID_ROW_PX = 44
-export const HOME_WORKSPACE_GRID_GAP_PX = 12
+export const HOME_WORKSPACE_GRID_ROW_PX = 40
+export const HOME_WORKSPACE_GRID_GAP_PX = 8
 export const HOME_WORKSPACE_MIN_WIDGET_W = 2
 export const HOME_WORKSPACE_MAX_WIDGET_W = HOME_WORKSPACE_GRID_COLUMNS
 export const HOME_WORKSPACE_MIN_WIDGET_H = 2
@@ -96,7 +96,7 @@ const HOME_WORKSPACE_BOOLEAN_LIGHT_MIN_WIDGET_W = 1
 const HOME_WORKSPACE_BOOLEAN_LIGHT_MIN_WIDGET_H = 2
 const HOME_WORKSPACE_SPATIAL_VIEW_MIN_WIDGET_W = 6
 const HOME_WORKSPACE_SPATIAL_VIEW_MIN_WIDGET_H = 4
-const HOME_WORKSPACE_DEFAULT_MAX_WIDGET_H = 8
+const HOME_WORKSPACE_DEFAULT_MAX_WIDGET_H = HOME_WORKSPACE_MAX_WIDGET_H
 const HOME_WORKSPACE_SPATIAL_VIEW_MAX_WIDGET_H = 14
 
 function createId(prefix: string) {
@@ -306,6 +306,31 @@ export function findFreeWidgetPosition(
   return { x: 0, y: startY }
 }
 
+/**
+ * Puts one widget exactly where the operator dropped it and pushes any panel it
+ * now overlaps further down, so moves and resizes never teleport the panel.
+ */
+export function placeWidgetPushingOthers(widgets: HomeWorkspaceWidget[], target: HomeWorkspaceWidget) {
+  const fixed = clampWidgetRect(target)
+  const placed: HomeWorkspaceWidget[] = [fixed]
+  const others = widgets
+    .filter((widget) => widget.id !== target.id)
+    .sort((a, b) => a.y - b.y || a.x - b.x)
+
+  for (const widget of others) {
+    let candidate = widget
+    let blocker = placed.find((other) => widgetsOverlap(other, candidate))
+    while (blocker) {
+      candidate = { ...candidate, y: blocker.y + blocker.h }
+      blocker = placed.find((other) => widgetsOverlap(other, candidate))
+    }
+    placed.push(candidate)
+  }
+
+  const byId = new Map(placed.map((widget) => [widget.id, widget]))
+  return widgets.map((widget) => byId.get(widget.id) ?? widget)
+}
+
 export function placeWidgetInLayout<T extends HomeWorkspaceWidget>(widgets: HomeWorkspaceWidget[], widget: T): T {
   const clamped = clampWidgetRect(widget)
   const position = findFreeWidgetPosition(widgets, clamped.w, clamped.h, clamped.x, clamped.y)
@@ -395,8 +420,26 @@ export function createHomeWorkspacePage(title: string): HomeWorkspacePage {
   }
 }
 
+/** Drive layout shipped to new operators: map first, live readouts beside it. */
+const DEFAULT_DRIVE_LAYOUT: Array<{ presetId: HomeWorkspacePresetId; x: number; y: number; w: number; h: number }> = [
+  { presetId: 'spatial-view', x: 0, y: 0, w: 8, h: 10 },
+  { presetId: 'pose', x: 8, y: 0, w: 4, h: 3 },
+  { presetId: 'heading-gyro', x: 8, y: 3, w: 4, h: 4 },
+  { presetId: 'battery-watch', x: 8, y: 7, w: 4, h: 6 },
+  { presetId: 'systems-health', x: 0, y: 10, w: 4, h: 3 },
+  { presetId: 'alerts', x: 4, y: 10, w: 4, h: 3 },
+]
+
+export function createDefaultDriveLayoutWidgets(): HomeWorkspaceWidget[] {
+  return DEFAULT_DRIVE_LAYOUT.reduce<HomeWorkspaceWidget[]>(
+    (widgets, slot) => [...widgets, createHomeWorkspacePresetWidget(widgets, slot.presetId, slot)],
+    [],
+  )
+}
+
 function createDefaultPages() {
-  return [1, 2, 3].map((index) => createHomeWorkspacePage(`Page ${index}`))
+  const drive = { ...createHomeWorkspacePage('Drive'), widgets: createDefaultDriveLayoutWidgets() }
+  return [drive, createHomeWorkspacePage('Page 2')]
 }
 
 export function createDefaultHomeWorkspaceState(): HomeWorkspaceState {
@@ -603,4 +646,21 @@ export function persistHomeWorkspaceState(state: HomeWorkspaceState) {
   } catch {
     // Ignore local persistence failures and keep the in-memory workspace state.
   }
+}
+
+/**
+ * Appends a topic panel to the saved active page. Used from pages that do not
+ * mount the layout board (e.g. the topic explorer); the board reads it on mount.
+ */
+export function appendTopicWidgetToSavedLayout(topicKey: string, title: string) {
+  const state = loadHomeWorkspaceState()
+  const pageIndex = Math.max(0, state.pages.findIndex((page) => page.id === state.activePageId))
+  const page = state.pages[pageIndex]
+  const widget = createHomeWorkspaceWidget(page.widgets, { topicKey, title, x: 0, y: 0 })
+  const pages = state.pages.map((candidate, index) =>
+    index === pageIndex ? { ...candidate, widgets: [...candidate.widgets, widget] } : candidate,
+  )
+
+  persistHomeWorkspaceState({ ...state, pages, lastSavedAt: new Date().toISOString() })
+  return page.title
 }

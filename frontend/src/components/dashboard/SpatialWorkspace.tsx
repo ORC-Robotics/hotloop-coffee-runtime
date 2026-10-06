@@ -13,6 +13,7 @@ import type {
   PlanarPoseFreshness,
   PoseSourceOverride,
 } from '../../types/telemetry'
+import { StatRow, StatusDot } from '../viz/viz'
 import { DashboardCard } from './DashboardCard'
 import { StatusBadge } from './StatusBadge'
 import { PlanarViewerCanvas } from '../spatial/PlanarViewerCanvas'
@@ -72,11 +73,9 @@ function MetricTile({
   value: string
 }) {
   return (
-    <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-alt)]/78 px-3.5 py-3">
-      <div className="text-[0.62rem] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-        {label}
-      </div>
-      <div className="mt-2 font-mono text-[1rem] text-[var(--text)]">{value}</div>
+    <div className="hl-well min-w-0 px-2.5 py-2">
+      <div className="hl-label truncate">{label}</div>
+      <div className="hl-value mt-0.5 truncate text-[14px]">{value}</div>
     </div>
   )
 }
@@ -88,44 +87,7 @@ function MetadataRow({
   label: string
   value: string
 }) {
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-[16px] border border-[var(--border)] bg-[var(--surface-alt)]/68 px-3 py-2.5">
-      <span className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-        {label}
-      </span>
-      <span className="max-w-[68%] break-words text-right font-mono text-[0.82rem] text-[var(--text)]">
-        {value}
-      </span>
-    </div>
-  )
-}
-
-function OverrideButton({
-  label,
-  description,
-  active,
-  onClick,
-}: {
-  label: string
-  description: string
-  active: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'rounded-[18px] border px-3.5 py-3 text-left transition-colors',
-        active
-          ? 'border-[var(--accent)] bg-[var(--accent-soft)]/84 text-[var(--text)]'
-          : 'border-[var(--border)] bg-[var(--surface-alt)]/78 text-[var(--text-muted)] hover:bg-[var(--surface-alt)]',
-      )}
-    >
-      <div className="text-[0.74rem] font-semibold uppercase tracking-[0.16em]">{label}</div>
-      <div className="mt-1 text-[0.76rem] leading-5 opacity-90">{description}</div>
-    </button>
-  )
+  return <StatRow label={label} value={value} />
 }
 
 function ReplayControlButton({
@@ -138,17 +100,7 @@ function ReplayControlButton({
   disabled?: boolean
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={cn(
-        'rounded-[16px] border px-3 py-2 text-[0.72rem] font-semibold uppercase tracking-[0.14em] transition-colors',
-        disabled
-          ? 'cursor-not-allowed border-[var(--border)] bg-[var(--surface-alt)]/40 text-[var(--text-muted)]/60'
-          : 'border-[var(--border)] bg-[var(--surface-alt)]/78 text-[var(--text)] hover:bg-[var(--surface-alt)]',
-      )}
-    >
+    <button type="button" onClick={onClick} disabled={disabled} className="hl-btn h-7 px-2.5 text-[12px]">
       {label}
     </button>
   )
@@ -166,19 +118,7 @@ function ControlChipButton({
   onClick: () => void
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={cn(
-        'rounded-[16px] border px-3 py-2 text-[0.72rem] font-semibold uppercase tracking-[0.14em] transition-colors',
-        disabled
-          ? 'cursor-not-allowed border-[var(--border)] bg-[var(--surface-alt)]/40 text-[var(--text-muted)]/60'
-          : active
-            ? 'border-[var(--accent)] bg-[var(--accent-soft)]/84 text-[var(--text)]'
-            : 'border-[var(--border)] bg-[var(--surface-alt)]/78 text-[var(--text)] hover:bg-[var(--surface-alt)]',
-      )}
-    >
+    <button type="button" onClick={onClick} disabled={disabled} aria-pressed={active} className="hl-btn h-7 px-2.5 text-[12px]">
       {label}
     </button>
   )
@@ -194,37 +134,34 @@ function SourceInventoryRow({
   activeOverride: PoseSourceOverride
 }) {
   return (
-    <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-alt)]/72 px-3.5 py-3">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <div className="text-[0.76rem] font-semibold uppercase tracking-[0.16em] text-[var(--text)]">
-            {poseSourceLabel(sourceId)}
-          </div>
-          <div className="mt-1 text-[0.74rem] text-[var(--text-muted)]">{pose.frame}</div>
-        </div>
-
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          {activeOverride === sourceId ? <StatusBadge tone="info" label="selected" /> : null}
-          <StatusBadge tone={availabilityTone(pose)} label={pose.freshness} />
-        </div>
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 border-b border-[var(--border)] py-1.5 last:border-b-0">
+      <div className="flex min-w-0 items-center gap-2">
+        <StatusDot tone={availabilityTone(pose)} />
+        <span className={cn('truncate text-[12.5px]', activeOverride === sourceId ? 'text-[var(--primary)]' : 'text-[var(--text-secondary)]')}>
+          {poseSourceLabel(sourceId)}
+        </span>
+        <span className="truncate font-mono text-[10.5px] text-[var(--text-faint)]">{pose.frame}</span>
       </div>
-
-      <div className="mt-3 grid gap-2 md:grid-cols-2">
-        <MetadataRow label="X" value={pose.available ? formatMeters(pose.xMm / 1000, 3) : '--'} />
-        <MetadataRow label="Y" value={pose.available ? formatMeters(pose.yMm / 1000, 3) : '--'} />
-      </div>
-
-      <div className="mt-2 grid gap-2 md:grid-cols-2">
-        <MetadataRow label="Yaw" value={pose.available ? formatDegrees(pose.yawDeg, 1) : '--'} />
-        <MetadataRow label="Seq" value={pose.available ? String(pose.sequence) : '--'} />
-      </div>
+      <span className="hl-value text-[11.5px] text-[var(--text-muted)]">
+        {pose.available
+          ? `${(pose.xMm / 1000).toFixed(2)}, ${(pose.yMm / 1000).toFixed(2)}, ${pose.yawDeg.toFixed(0)}°`
+          : pose.freshness}
+      </span>
     </div>
   )
 }
 
+const POSE_SOURCE_SHORT_LABELS: Partial<Record<PoseSourceOverride, string>> = {
+  auto: 'Auto',
+  odometry: 'Odom',
+  reactive: 'Reactive',
+  mapeamento: 'Mapping',
+  simulation: 'Sim',
+}
+
 export function SpatialWorkspace() {
   const snapshot = useSpatialTelemetry()
-  const viewModel = useSpatialViewModel(snapshot)
+  const viewModel = useSpatialViewModel(snapshot, { followRobotByDefault: true })
   const pose = viewModel.selectedPose.pose
   const poseUnavailable = !viewModel.selectedPose.isRenderable
   const lidarSelection = viewModel.selectedLidar
@@ -259,14 +196,8 @@ export function SpatialWorkspace() {
     valueMm === null ? '--' : `${Math.round(valueMm)} mm`
 
   return (
-    <div className="grid min-h-0 gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <DashboardCard
-        title="Spatial Viewer"
-        subtitle="2D odometry validation surface"
-        accent="accent"
-        className="min-h-[640px]"
-        bodyClassName="p-0"
-      >
+    <div className="grid h-full min-h-0 gap-2.5 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="min-h-[420px]">
         <PlanarViewerCanvas
           poseSelection={viewModel.selectedPose}
           lidarSelection={lidarSelection}
@@ -301,35 +232,35 @@ export function SpatialWorkspace() {
           onArmGoalPreview={viewModel.armGoalPreview}
           onDisarmGoalPreview={viewModel.disarmGoalPreview}
           onClearGoalPreview={viewModel.clearGoalPreview}
-          requireCtrlForInteraction
         />
-      </DashboardCard>
+      </div>
 
-      <div className="grid gap-3">
-        <DashboardCard title="Source Selection" subtitle="pose override and selection" accent="info">
-          <div className="grid gap-2">
+      <div className="flex min-h-0 flex-col gap-2 overflow-y-auto pr-0.5 [&>section]:!h-auto [&>section]:shrink-0">
+        <DashboardCard
+          title="Pose source"
+          headerSlot={<StatusBadge tone={freshnessTone(pose.freshness)} label={pose.freshness} />}
+        >
+          <div className="hl-seg grid w-full grid-cols-5" role="group" aria-label="Pose source">
             {SPATIAL_POSE_OVERRIDE_OPTIONS.map((option) => (
-              <OverrideButton
+              <button
                 key={option.id}
-                label={option.label}
-                description={option.description}
-                active={viewModel.sourceOverride === option.id}
+                type="button"
+                className="hl-seg-item px-1 text-[11.5px]"
+                aria-pressed={viewModel.sourceOverride === option.id}
                 onClick={() => viewModel.setSourceOverride(option.id)}
-              />
+                title={option.description}
+              >
+                {POSE_SOURCE_SHORT_LABELS[option.id] ?? option.label}
+              </button>
             ))}
           </div>
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            <StatusBadge tone="info" label={viewModel.selectedPose.selectedSourceLabel} />
-            <StatusBadge tone={freshnessTone(pose.freshness)} label={pose.freshness} />
-          </div>
-
-          <div className="mt-4 rounded-[18px] border border-[var(--border)] bg-[var(--surface-alt)]/72 px-3.5 py-3 text-[0.8rem] leading-6 text-[var(--text-muted)]">
-            Auto mode prefers <span className="font-semibold text-[var(--text)]">odometry</span>, then reactive, then mapeamento. This workspace now reads the dedicated spatial feed when opened, so future SLAM traffic can grow without bloating the main dashboard snapshot.
-          </div>
+          <p className="mt-2 text-[11.5px] leading-[1.45] text-[var(--text-faint)]">
+            {SPATIAL_POSE_OVERRIDE_OPTIONS.find((option) => option.id === viewModel.sourceOverride)?.description}
+          </p>
+          <div className="mt-2 text-[12px] text-[var(--text-secondary)]">Using {viewModel.selectedPose.selectedSourceLabel}</div>
         </DashboardCard>
 
-        <DashboardCard title="Spatial Stream" subtitle="dedicated pose and lidar path" accent="accent">
+        <DashboardCard collapsible defaultOpen={false} title="Spatial Stream" subtitle="dedicated pose and lidar path" accent="accent">
           <div className="grid gap-2">
             <MetadataRow label="Transport" value={snapshot.stream.transport} />
             <MetadataRow label="Endpoint" value={streamEndpoint} />
@@ -358,14 +289,14 @@ export function SpatialWorkspace() {
             <MetadataRow label="LiDAR Age" value={formatPoseAgeLabel(lidarSelection.ageMs)} />
           </div>
 
-          <div className="mt-4 rounded-[18px] border border-[var(--border)] bg-[var(--surface-alt)]/72 px-3.5 py-3 text-[0.8rem] leading-6 text-[var(--text-muted)]">
+          <div className="mt-2.5 text-[11.5px] leading-[1.5] text-[var(--text-faint)]">
             {lidarUnavailable
               ? 'Pose validation keeps working even when the compact lidar packet is not published yet. The dedicated stream is already isolated so we can add desktop-side SLAM inputs without touching the viewer contract again.'
               : lidarSelection.message}
           </div>
         </DashboardCard>
 
-        <DashboardCard title="LiDAR Diagnostics" subtitle="desktop-side scan validation" accent="info">
+        <DashboardCard collapsible title="LiDAR Diagnostics" subtitle="desktop-side scan validation" accent="info">
           <div className="grid gap-2">
             <MetadataRow label="Render State" value={lidarDiagnostics.renderState} />
             <MetadataRow
@@ -410,18 +341,18 @@ export function SpatialWorkspace() {
             <MetadataRow label="Buffered Scans" value={String(viewModel.lidarHistory.length)} />
           </div>
 
-          <div className="mt-4 rounded-[18px] border border-[var(--border)] bg-[var(--surface-alt)]/72 px-3.5 py-3 text-[0.8rem] leading-6 text-[var(--text-muted)]">
-            The desktop renderer keeps <span className="font-semibold text-[var(--text)]">180 deg as forward</span> in <span className="font-semibold text-[var(--text)]">{lidarDiagnostics.sensorFrame}</span>, remaps Atlas lateral handedness, and now places the sensor <span className="font-semibold text-[var(--text)]">91.84 mm forward</span> of the robot center. This keeps V1 scan-to-pose validation coherent and prepares the next desktop-side observed map layer.
+          <div className="mt-2.5 text-[11.5px] leading-[1.5] text-[var(--text-faint)]">
+            The desktop renderer keeps <span className="font-medium text-[var(--text-secondary)]">180 deg as forward</span> in <span className="font-medium text-[var(--text-secondary)]">{lidarDiagnostics.sensorFrame}</span>, remaps Atlas lateral handedness, and now places the sensor <span className="font-medium text-[var(--text-secondary)]">91.84 mm forward</span> of the robot center. This keeps V1 scan-to-pose validation coherent and prepares the next desktop-side observed map layer.
           </div>
         </DashboardCard>
 
-        <DashboardCard title="Observed Map" subtitle="desktop-side local scan accumulation" accent="accent">
-          <div className="flex flex-wrap gap-2">
+        <DashboardCard collapsible defaultOpen={false} title="Observed Map" subtitle="desktop-side local scan accumulation" accent="accent">
+          <div className="flex flex-wrap gap-1.5">
             <StatusBadge tone={viewModel.observedMapFrozen ? 'warning' : 'good'} label={viewModel.observedMapFrozen ? 'frozen' : 'live'} />
             <StatusBadge tone={viewModel.observedMapFadeOlderScans ? 'info' : 'warning'} label={viewModel.observedMapFadeOlderScans ? 'fade old scans' : 'uniform intensity'} />
           </div>
 
-          <div className="mt-4 grid gap-2">
+          <div className="mt-3 grid">
             <MetadataRow label="Frame" value={pose.available ? pose.frame : '--'} />
             <MetadataRow label="Stored Scans" value={String(viewModel.observedMapScans.length)} />
             <MetadataRow label="Displayed Scans" value={String(viewModel.displayObservedMapScans.length)} />
@@ -430,7 +361,7 @@ export function SpatialWorkspace() {
             <MetadataRow label="History Limit" value={`${viewModel.observedMapHistoryLimit} scans`} />
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap gap-1.5">
             <ControlChipButton
               label={viewModel.observedMapFrozen ? 'Resume Map' : 'Freeze Map'}
               active={viewModel.observedMapFrozen}
@@ -445,10 +376,10 @@ export function SpatialWorkspace() {
           </div>
 
           <div className="mt-4">
-            <div className="mb-2 text-[0.66rem] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+            <div className="hl-label mb-1.5">
               Max History
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5">
               {viewModel.observedMapHistoryLimitOptions.map((limit) => (
                 <ControlChipButton
                   key={limit}
@@ -460,13 +391,13 @@ export function SpatialWorkspace() {
             </div>
           </div>
 
-          <div className="mt-4 rounded-[18px] border border-[var(--border)] bg-[var(--surface-alt)]/72 px-3.5 py-3 text-[0.8rem] leading-6 text-[var(--text-muted)]">
-            This layer accumulates recent compact LiDAR scans directly on the desktop in <span className="font-semibold text-[var(--text)]">odometry_local</span>. It stays intentionally short-horizon as the raw spatial evidence layer, while the occupancy layer now carries the longer-lived session map.
+          <div className="mt-2.5 text-[11.5px] leading-[1.5] text-[var(--text-faint)]">
+            This layer accumulates recent compact LiDAR scans directly on the desktop in <span className="font-medium text-[var(--text-secondary)]">odometry_local</span>. It stays intentionally short-horizon as the raw spatial evidence layer, while the occupancy layer now carries the longer-lived session map.
           </div>
         </DashboardCard>
 
-        <DashboardCard title="Occupancy Layer" subtitle="desktop-side free and occupied cells" accent="warning">
-          <div className="flex flex-wrap gap-2">
+        <DashboardCard collapsible defaultOpen={false} title="Occupancy Layer" subtitle="desktop-side free and occupied cells" accent="warning">
+          <div className="flex flex-wrap gap-1.5">
             <StatusBadge
               tone={viewModel.showOccupancyLayer ? 'good' : 'warning'}
               label={viewModel.showOccupancyLayer ? 'visible' : 'hidden'}
@@ -477,7 +408,7 @@ export function SpatialWorkspace() {
             />
           </div>
 
-          <div className="mt-4 grid gap-2">
+          <div className="mt-3 grid">
             <MetadataRow label="Cell Size" value={`${viewModel.occupancyCellSizeMm} mm`} />
             <MetadataRow label="Session Scans" value={String(viewModel.occupancySessionScanCount)} />
             <MetadataRow label="Rendered Cells" value={occupancyLayer ? String(occupancyLayer.cells.length) : '--'} />
@@ -487,7 +418,7 @@ export function SpatialWorkspace() {
             <MetadataRow label="Frame" value={occupancyLayer?.frame ?? '--'} />
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap gap-1.5">
             <ControlChipButton
               label={viewModel.showOccupancyLayer ? 'Hide Occupancy' : 'Show Occupancy'}
               active={viewModel.showOccupancyLayer}
@@ -501,10 +432,10 @@ export function SpatialWorkspace() {
           </div>
 
           <div className="mt-4">
-            <div className="mb-2 text-[0.66rem] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+            <div className="hl-label mb-1.5">
               Cell Resolution
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5">
               {viewModel.occupancyCellSizeOptionsMm.map((cellSizeMm) => (
                 <ControlChipButton
                   key={cellSizeMm}
@@ -516,13 +447,13 @@ export function SpatialWorkspace() {
             </div>
           </div>
 
-          <div className="mt-4 rounded-[18px] border border-[var(--border)] bg-[var(--surface-alt)]/72 px-3.5 py-3 text-[0.8rem] leading-6 text-[var(--text-muted)]">
+          <div className="mt-2.5 text-[11.5px] leading-[1.5] text-[var(--text-faint)]">
             The occupancy layer rasterizes each compact LiDAR ray on the desktop, marking traversed cells as free and impact cells as occupied. It now persists across the whole live session instead of depending on the short recent-scan window used by the raw observed map, so large-arena coverage does not fade out while you keep exploring.
           </div>
         </DashboardCard>
 
-        <DashboardCard title="Goal Preview" subtitle="desktop-side target selection and route preview" accent="accent">
-          <div className="flex flex-wrap gap-2">
+        <DashboardCard collapsible title="Goal Preview" subtitle="desktop-side target selection and route preview" accent="accent">
+          <div className="flex flex-wrap gap-1.5">
             <StatusBadge tone={goalPreviewTone(goalPreview.status)} label={goalPreview.status} />
             <StatusBadge
               tone={goalPreview.target?.cellState === 'mixed' ? 'warning' : 'info'}
@@ -530,7 +461,7 @@ export function SpatialWorkspace() {
             />
           </div>
 
-          <div className="mt-4 grid gap-2">
+          <div className="mt-3 grid">
             <MetadataRow
               label="Requested X"
               value={
@@ -595,7 +526,7 @@ export function SpatialWorkspace() {
             <MetadataRow label="Safety Buffer" value={`${goalPreview.safetyBufferMm} mm`} />
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap gap-1.5">
             <ControlChipButton
               label={goalPreview.status === 'armed' ? 'Disarm Goal' : 'Arm Goal (N)'}
               active={goalPreview.status === 'armed'}
@@ -613,17 +544,17 @@ export function SpatialWorkspace() {
             />
           </div>
 
-          <div className="mt-4 rounded-[18px] border border-[var(--border)] bg-[var(--surface-alt)]/72 px-3.5 py-3 text-[0.8rem] leading-6 text-[var(--text-muted)]">
+          <div className="mt-2.5 text-[11.5px] leading-[1.5] text-[var(--text-faint)]">
             {goalPreview.message}{' '}
-            <span className="font-semibold text-[var(--text)]">
+            <span className="font-medium text-[var(--text-secondary)]">
               Arming is still local:
             </span>{' '}
             this card selects and validates the route; execution is handled only by the supervised Guided Navigation V0 controls below.
           </div>
         </DashboardCard>
 
-        <DashboardCard title="Maze Planner" subtitle="robot-side onboard exploration intent" accent="primary">
-          <div className="flex flex-wrap gap-2">
+        <DashboardCard collapsible defaultOpen={false} title="Maze Planner" subtitle="robot-side onboard exploration intent" accent="primary">
+          <div className="flex flex-wrap gap-1.5">
             <StatusBadge
               tone={viewModel.mazeOverlay?.available ? 'good' : 'warning'}
               label={viewModel.mazeOverlay?.available ? viewModel.mazeOverlay.state : 'unavailable'}
@@ -634,7 +565,7 @@ export function SpatialWorkspace() {
             />
           </div>
 
-          <div className="mt-4 grid gap-2">
+          <div className="mt-3 grid">
             <MetadataRow label="Status" value={viewModel.mazeOverlay?.status ?? '--'} />
             <MetadataRow
               label="Coverage"
@@ -686,13 +617,13 @@ export function SpatialWorkspace() {
             />
           </div>
 
-          <div className="mt-4 rounded-[18px] border border-[var(--border)] bg-[var(--surface-alt)]/72 px-3.5 py-3 text-[0.8rem] leading-6 text-[var(--text-muted)]">
+          <div className="mt-2.5 text-[11.5px] leading-[1.5] text-[var(--text-faint)]">
             This overlay is the robot’s own onboard maze planner, not a desktop guess. The walls still come from the desktop occupancy layer, while the route, active frontier target, and top candidate frontiers come from the Atlas autonomous runtime over a compact overlay packet.
           </div>
         </DashboardCard>
 
-        <DashboardCard title="Guided Navigation V0" subtitle="supervised desktop-side waypoint follower" accent="warning">
-          <div className="flex flex-wrap gap-2">
+        <DashboardCard collapsible defaultOpen={false} title="Guided navigation" subtitle="supervised desktop-side waypoint follower" accent="warning">
+          <div className="flex flex-wrap gap-1.5">
             <StatusBadge
               tone={guidedNavigationTone(guidedNavigation.status)}
               label={guidedNavigation.status}
@@ -703,7 +634,7 @@ export function SpatialWorkspace() {
             />
           </div>
 
-          <div className="mt-4 grid gap-2">
+          <div className="mt-3 grid">
             <MetadataRow
               label="Lookahead"
               value={
@@ -790,7 +721,7 @@ export function SpatialWorkspace() {
             />
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap gap-1.5">
             <ControlChipButton
               label={guidedNavigation.canStart ? 'Start Guided V0' : 'Check Start Gate'}
               active={guidedNavigation.active}
@@ -805,14 +736,14 @@ export function SpatialWorkspace() {
             />
           </div>
 
-          <div className="mt-4 rounded-[18px] border border-[var(--border)] bg-[var(--surface-alt)]/72 px-3.5 py-3 text-[0.8rem] leading-6 text-[var(--text-muted)]">
+          <div className="mt-2.5 text-[11.5px] leading-[1.5] text-[var(--text-faint)]">
             {guidedNavigation.message}{' '}
-            <span className="font-semibold text-[var(--text)]">Safety rule:</span>{' '}
+            <span className="font-medium text-[var(--text-secondary)]">Safety rule:</span>{' '}
             this V0 only runs in teleop, replans from the latest desktop occupancy route, applies a short close-range recovery when odometry stalls near the target, and manual keyboard or joystick input interrupts it.
           </div>
         </DashboardCard>
 
-        <DashboardCard title="Replay Buffer" subtitle="short scan history scrubber" accent="warning">
+        <DashboardCard collapsible defaultOpen={false} title="Replay Buffer" subtitle="short scan history scrubber" accent="warning">
           <div className="grid gap-2">
             <MetadataRow label="Mode" value={viewModel.replayMode} />
             <MetadataRow label="Buffered Samples" value={String(replayBufferCount)} />
@@ -854,7 +785,7 @@ export function SpatialWorkspace() {
               value={replaySliderValue}
               disabled={replayControlsDisabled}
               onChange={(event) => viewModel.enterReplayAtIndex(Number(event.target.value))}
-              className="w-full accent-[var(--accent)]"
+              className="w-full accent-[var(--primary)]"
             />
           </div>
 
@@ -886,18 +817,18 @@ export function SpatialWorkspace() {
             />
           </div>
 
-          <div className="mt-4 rounded-[18px] border border-[var(--border)] bg-[var(--surface-alt)]/72 px-3.5 py-3 text-[0.8rem] leading-6 text-[var(--text-muted)]">
+          <div className="mt-2.5 text-[11.5px] leading-[1.5] text-[var(--text-faint)]">
             Moving the scrubber freezes the viewer on the selected buffered sample. The robot body, trail, and primary LiDAR overlay all switch to that captured instant so we can inspect scan-to-pose coherence without extrapolation.
           </div>
         </DashboardCard>
 
-        <DashboardCard title="Scan Registration" subtitle="lightweight desktop-side fit check" accent="accent">
-          <div className="flex flex-wrap gap-2">
+        <DashboardCard collapsible defaultOpen={false} title="Scan Registration" subtitle="lightweight desktop-side fit check" accent="accent">
+          <div className="flex flex-wrap gap-1.5">
             <StatusBadge tone={registrationTone(scanRegistration.quality)} label={scanRegistration.quality} />
             <StatusBadge tone="info" label={viewModel.replayMode} />
           </div>
 
-          <div className="mt-4 grid gap-2">
+          <div className="mt-3 grid">
             <MetadataRow
               label="Current Seq"
               value={scanRegistration.currentSequence === null ? '--' : String(scanRegistration.currentSequence)}
@@ -949,25 +880,25 @@ export function SpatialWorkspace() {
             />
           </div>
 
-          <div className="mt-4 rounded-[18px] border border-[var(--border)] bg-[var(--surface-alt)]/72 px-3.5 py-3 text-[0.8rem] leading-6 text-[var(--text-muted)]">
+          <div className="mt-2.5 text-[11.5px] leading-[1.5] text-[var(--text-faint)]">
             {scanRegistration.message}
           </div>
         </DashboardCard>
 
-        <DashboardCard title="Pose Readout" subtitle="selected source metadata" accent="primary">
+        <DashboardCard collapsible title="Pose Readout" subtitle="selected source metadata" accent="primary">
           {poseUnavailable ? (
-            <div className="rounded-[18px] border border-dashed border-[var(--border)] bg-[var(--surface-alt)]/66 px-4 py-4 text-[0.82rem] leading-6 text-[var(--text-muted)]">
+            <div className="hl-well px-3 py-2.5 text-[12px] text-[var(--text-faint)]">
               No valid pose is available from the selected source. Use Auto or switch to a source that is currently publishing planar SE(2) data.
             </div>
           ) : (
             <>
-              <div className="grid gap-2 md:grid-cols-3">
+              <div className="grid grid-cols-3 gap-1.5">
                 <MetricTile label="X" value={formatMeters(pose.xMm / 1000, 3)} />
                 <MetricTile label="Y" value={formatMeters(pose.yMm / 1000, 3)} />
                 <MetricTile label="Yaw" value={formatDegrees(pose.yawDeg, 1)} />
               </div>
 
-              <div className="mt-4 grid gap-2">
+              <div className="mt-3 grid">
                 <MetadataRow label="Source" value={poseSourceLabel(pose.source)} />
                 <MetadataRow label="Frame" value={pose.frame} />
                 <MetadataRow label="Freshness" value={pose.freshness} />
@@ -979,7 +910,7 @@ export function SpatialWorkspace() {
           )}
         </DashboardCard>
 
-        <DashboardCard title="Source Inventory" subtitle="candidate pose feeds" accent="warning">
+        <DashboardCard collapsible defaultOpen={false} title="Source Inventory" subtitle="candidate pose feeds" accent="warning">
           <div className="grid gap-2.5">
             {(['odometry', 'reactive', 'mapeamento', 'simulation'] as const).map((sourceId) => (
               <SourceInventoryRow

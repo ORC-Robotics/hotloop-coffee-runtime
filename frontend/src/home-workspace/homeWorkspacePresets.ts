@@ -1,4 +1,5 @@
 export type HomeWorkspacePresetId =
+  | 'pose'
   | 'battery-watch'
   | 'heading-gyro'
   | 'systems-health'
@@ -19,34 +20,42 @@ export interface HomeWorkspacePresetDefinition {
 
 export const HOME_WORKSPACE_PRESET_DEFINITIONS: HomeWorkspacePresetDefinition[] = [
   {
+    id: 'pose',
+    label: 'Pose',
+    defaultTitle: 'Pose',
+    description: 'Live odometry pose: X, Y, yaw and source freshness.',
+    defaultWidth: 4,
+    defaultHeight: 3,
+  },
+  {
     id: 'battery-watch',
-    label: 'Battery Watch',
-    defaultTitle: 'Battery Watch',
+    label: 'Battery',
+    defaultTitle: 'Battery',
     description: 'Voltage trend, pack load and runtime estimate.',
     defaultWidth: 6,
     defaultHeight: 4,
   },
   {
     id: 'heading-gyro',
-    label: 'Heading / Gyro',
-    defaultTitle: 'Heading / Gyro',
+    label: 'Heading',
+    defaultTitle: 'Heading',
     description: 'Orientation, target heading and angular error.',
     defaultWidth: 6,
     defaultHeight: 4,
   },
   {
     id: 'systems-health',
-    label: 'Systems Health',
-    defaultTitle: 'Systems Health',
+    label: 'Sensors',
+    defaultTitle: 'Sensors',
     description: 'Sensor chain readiness and gyro-hold state.',
     defaultWidth: 5,
     defaultHeight: 3,
   },
   {
     id: 'commands',
-    label: 'Commands',
-    defaultTitle: 'Commands',
-    description: 'Live drive command vectors and narrative.',
+    label: 'Drive commands',
+    defaultTitle: 'Drive commands',
+    description: 'Forward, strafe and rotation output.',
     defaultWidth: 5,
     defaultHeight: 4,
   },
@@ -60,25 +69,25 @@ export const HOME_WORKSPACE_PRESET_DEFINITIONS: HomeWorkspacePresetDefinition[] 
   },
   {
     id: 'raspberry-monitor',
-    label: 'Raspberry Monitor',
-    defaultTitle: 'Raspberry Monitor',
+    label: 'Raspberry Pi',
+    defaultTitle: 'Raspberry Pi',
     description: 'CPU, RAM and platform temperature from the Raspberry runtime.',
     defaultWidth: 4,
     defaultHeight: 4,
   },
   {
     id: 'camera-stream',
-    label: 'Camera Stream',
-    defaultTitle: 'Camera Stream',
-    description: 'Embedded live camera surface using the active robot feed catalog.',
+    label: 'Camera',
+    defaultTitle: 'Camera',
+    description: 'One live robot camera feed.',
     defaultWidth: 6,
     defaultHeight: 4,
   },
   {
     id: 'spatial-view',
-    label: 'Spatial View',
-    defaultTitle: 'Spatial View',
-    description: 'Interactive planar viewer with pan, zoom and local goal preview inside Home Workspace.',
+    label: 'Map',
+    defaultTitle: 'Map',
+    description: 'Live map with robot pose, trail and LiDAR.',
     defaultWidth: 7,
     defaultHeight: 5,
   },

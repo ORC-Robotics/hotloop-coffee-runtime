@@ -62,7 +62,7 @@ export function CameraFeedMedia({
   }, [feed.url, onStatusChange, resourceKey])
 
   return (
-    <div className={cn('relative overflow-hidden rounded-[18px] border border-[var(--border)] bg-[var(--background-subtle)]', className)}>
+    <div className={cn('relative overflow-hidden bg-black', className)}>
       {feed.url.trim() ? (
         feed.kind === 'video' ? (
           <video
@@ -70,7 +70,7 @@ export function CameraFeedMedia({
             autoPlay
             muted
             playsInline
-            className={cn('w-full object-cover', mediaClassName)}
+            className={cn('w-full object-contain', mediaClassName)}
             onCanPlay={() => onStatusChange?.('live')}
             onError={() => onStatusChange?.('error')}
           />
@@ -78,7 +78,7 @@ export function CameraFeedMedia({
           <img
             src={src}
             alt={feed.label}
-            className={cn('w-full object-cover', mediaClassName)}
+            className={cn('w-full object-contain', mediaClassName)}
             onLoad={() => onStatusChange?.('live')}
             onError={() => onStatusChange?.('error')}
           />

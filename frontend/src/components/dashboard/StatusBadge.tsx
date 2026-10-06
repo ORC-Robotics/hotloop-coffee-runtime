@@ -1,45 +1,27 @@
-import type { CSSProperties } from 'react'
+import { cn } from '../../lib/cn'
 import type { UiTone } from '../../types/telemetry'
 
 interface StatusBadgeProps {
   tone: UiTone
   label: string
+  className?: string
 }
 
-const toneStyles: Record<UiTone, CSSProperties> = {
-  good: {
-    background: 'var(--status-success-soft)',
-    color: 'var(--status-success)',
-    borderColor: 'color-mix(in srgb, var(--status-success) 26%, var(--border))',
-  },
-  warning: {
-    background: 'var(--status-warning-soft)',
-    color: 'var(--status-warning)',
-    borderColor: 'color-mix(in srgb, var(--status-warning) 28%, var(--border))',
-  },
-  critical: {
-    background: 'var(--status-error-soft)',
-    color: 'var(--status-error)',
-    borderColor: 'color-mix(in srgb, var(--status-error) 30%, var(--border))',
-  },
-  info: {
-    background: 'var(--status-info-soft)',
-    color: 'var(--status-info)',
-    borderColor: 'color-mix(in srgb, var(--status-info) 28%, var(--border))',
-  },
-  neutral: {
-    background: 'var(--bg-elevated)',
-    color: 'var(--text-muted)',
-    borderColor: 'var(--border)',
-  },
-}
-
-export function StatusBadge({ tone, label }: StatusBadgeProps) {
+/** Small status marker: a tone dot plus a short lowercase label. */
+export function StatusBadge({ tone, label, className }: StatusBadgeProps) {
   return (
     <span
-      className="inline-flex items-center rounded-full border px-3 py-1 text-[0.73rem] font-semibold uppercase tracking-[0.16em]"
-      style={toneStyles[tone]}
+      className={cn(
+        `tone-${tone} inline-flex h-[22px] items-center gap-1.5 rounded-full border px-2 text-[11.5px] font-medium whitespace-nowrap`,
+        className,
+      )}
+      style={{
+        borderColor: tone === 'neutral' ? 'var(--border)' : 'color-mix(in srgb, var(--tone) 32%, transparent)',
+        background: tone === 'neutral' ? 'transparent' : 'color-mix(in srgb, var(--tone) 10%, transparent)',
+        color: tone === 'neutral' ? 'var(--text-muted)' : 'color-mix(in srgb, var(--tone) 70%, var(--text) 30%)',
+      }}
     >
+      <span className="hl-dot !h-1.5 !w-1.5" style={{ background: 'var(--tone)' }} />
       {label}
     </span>
   )

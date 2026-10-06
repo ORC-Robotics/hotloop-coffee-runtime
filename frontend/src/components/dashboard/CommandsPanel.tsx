@@ -1,5 +1,6 @@
 import { formatCommand } from '../../lib/format'
 import type { CommandData, TelemetryDerivedState } from '../../types/telemetry'
+import { CenterBar } from '../viz/viz'
 import { DashboardCard } from './DashboardCard'
 
 interface CommandsPanelProps {
@@ -8,66 +9,43 @@ interface CommandsPanelProps {
 }
 
 const commandMeta = [
-  { key: 'center', label: 'Center', accent: 'var(--primary)' },
-  { key: 'forward', label: 'Forward', accent: 'var(--success)' },
-  { key: 'rotation', label: 'Rotation', accent: 'var(--accent)' },
+  { key: 'forward', label: 'Forward', color: 'var(--series-1)', neg: 'rev', pos: 'fwd' },
+  { key: 'center', label: 'Strafe', color: 'var(--series-3)', neg: 'left', pos: 'right' },
+  { key: 'rotation', label: 'Rotation', color: 'var(--series-4)', neg: 'ccw', pos: 'cw' },
 ] as const
 
 export function CommandsPanel({ data, derived }: CommandsPanelProps) {
   return (
-    <DashboardCard title="Commands" subtitle="active control signals" accent="success" className="min-h-[0]">
+    <DashboardCard title="Drive commands" subtitle="controller output">
       <CommandsPanelBody data={data} derived={derived} />
     </DashboardCard>
   )
 }
 
 export function CommandsPanelBody({ data, derived }: CommandsPanelProps) {
-  const commandDirection = {
-    center: data.center > 0.08 ? 'bias right' : data.center < -0.08 ? 'bias left' : 'centered',
-    forward: data.forward > 0.08 ? 'forward' : data.forward < -0.08 ? 'reverse' : 'hold',
-    rotation: data.rotation > 0.08 ? 'rotate right' : data.rotation < -0.08 ? 'rotate left' : 'no turn',
-  } as const
-
   return (
-    <div className="flex h-full flex-col gap-2.5">
-      <div className="rounded-[16px] border border-[var(--border)] bg-[var(--surface-alt)]/78 px-3 py-2 text-[0.74rem] leading-5 text-[var(--text-muted)]">
-        {derived.commandNarrative}
-      </div>
-
-      <div className="grid gap-2">
+    <div className="flex h-full min-h-0 flex-col justify-between gap-3">
+      <div className="grid gap-3">
         {commandMeta.map((item) => {
           const value = data[item.key]
-          const normalized = Math.max(-1, Math.min(1, value))
-          const width = `${Math.abs(normalized) * 50}%`
-
           return (
-            <div key={item.key} className="rounded-[16px] border border-[var(--border)] bg-[var(--surface-alt)]/82 px-3 py-2.5">
-              <div className="mb-1.5 flex items-center justify-between">
-                <div className="text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
-                  {item.label}
-                </div>
-                <div className="font-mono text-[0.88rem] text-[var(--text)]">{formatCommand(value)}</div>
+            <div key={item.key}>
+              <div className="mb-1.5 flex items-baseline justify-between gap-2">
+                <span className="hl-label">{item.label}</span>
+                <span className="hl-value text-[13px]">{formatCommand(value)}</span>
               </div>
-              <div className="mb-1.5 flex items-center justify-between text-[0.66rem] uppercase tracking-[0.14em] text-[var(--text-muted)]">
-                <span>{item.key === 'center' ? 'left' : item.key === 'rotation' ? 'rotate left' : 'reverse'}</span>
-                <span>{commandDirection[item.key]}</span>
-                <span>{item.key === 'center' ? 'right' : item.key === 'rotation' ? 'rotate right' : 'forward'}</span>
-              </div>
-              <div className="relative h-2.5 rounded-full bg-[var(--background-subtle)]">
-                <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-[var(--border-strong)]" />
-                <div
-                  className="absolute top-0 h-2.5 rounded-full transition-all duration-200"
-                  style={{
-                    background: item.accent,
-                    width,
-                    left: normalized >= 0 ? '50%' : `calc(50% - ${width})`,
-                  }}
-                />
+              <CenterBar value={value} color={item.color} />
+              <div className="mt-1 flex justify-between text-[10.5px] text-[var(--text-faint)]">
+                <span>{item.neg}</span>
+                <span>{item.pos}</span>
               </div>
             </div>
           )
         })}
       </div>
+      <p className="truncate text-[11.5px] text-[var(--text-muted)]" title={derived.commandNarrative}>
+        {derived.commandNarrative}
+      </p>
     </div>
   )
 }

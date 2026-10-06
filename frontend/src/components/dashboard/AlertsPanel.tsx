@@ -1,5 +1,6 @@
-import type { CSSProperties } from 'react'
-import type { AlertItem } from '../../types/telemetry'
+import { toneColor } from '../../lib/robotThresholds'
+import type { AlertItem, UiTone } from '../../types/telemetry'
+import { EmptyHint } from '../viz/viz'
 import { DashboardCard } from './DashboardCard'
 import { StatusBadge } from './StatusBadge'
 
@@ -7,49 +8,23 @@ interface AlertsPanelProps {
   alerts: AlertItem[]
 }
 
-function severityIcon(severity: AlertItem['severity']) {
-  if (severity === 'critical') return '!!'
-  if (severity === 'warning') return '!'
-  return 'i'
-}
-
-function alertStyle(severity: AlertItem['severity']): CSSProperties {
-  if (severity === 'critical') {
-    return {
-      background: 'var(--danger-soft)',
-      borderColor: 'color-mix(in srgb, var(--danger) 34%, var(--border))',
-      boxShadow: 'var(--card-shadow)',
-    }
-  }
-
-  if (severity === 'warning') {
-    return {
-      background: 'var(--warning-soft)',
-      borderColor: 'color-mix(in srgb, var(--warning) 30%, var(--border))',
-    }
-  }
-
-  return {
-    background: 'var(--info-soft)',
-    borderColor: 'color-mix(in srgb, var(--info) 24%, var(--border))',
-  }
+function severityTone(severity: AlertItem['severity']): UiTone {
+  if (severity === 'critical') return 'critical'
+  if (severity === 'warning') return 'warning'
+  return 'info'
 }
 
 export function AlertsPanel({ alerts }: AlertsPanelProps) {
-  const topAlerts = alerts.slice(0, 2)
-  const dominant = topAlerts[0]?.severity ?? null
+  const dominant = alerts[0]?.severity ?? null
 
   return (
     <DashboardCard
       title="Alerts"
-      subtitle="priority monitor"
-      accent={dominant === 'critical' ? 'danger' : dominant === 'warning' ? 'warning' : 'danger'}
-      className={dominant === 'critical' ? 'min-h-[150px]' : 'min-h-[136px]'}
       headerSlot={
         dominant ? (
-          <StatusBadge tone={dominant === 'critical' ? 'critical' : dominant === 'warning' ? 'warning' : 'info'} label={dominant} />
+          <StatusBadge tone={severityTone(dominant)} label={`${alerts.length} active`} />
         ) : (
-          <StatusBadge tone="neutral" label="clear" />
+          <StatusBadge tone="good" label="clear" />
         )
       }
     >
@@ -59,50 +34,30 @@ export function AlertsPanel({ alerts }: AlertsPanelProps) {
 }
 
 export function AlertsPanelBody({ alerts }: AlertsPanelProps) {
-  const topAlerts = alerts.slice(0, 2)
+  if (alerts.length === 0) {
+    return <EmptyHint title="No active alerts" />
+  }
 
-  return topAlerts.length === 0 ? (
-    <div className="flex h-full items-center justify-between gap-3 rounded-[16px] border border-dashed border-[var(--border)] bg-[var(--surface-alt)]/72 px-4 py-3 text-[0.8rem] leading-5 text-[var(--text-muted)]">
-      <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[0.75rem] font-semibold text-[var(--text-muted)]">
-        OK
-      </span>
-      <span className="flex-1">No active operational alerts.</span>
-    </div>
-  ) : (
-    <div className="grid gap-2">
-      {topAlerts.map((alert) => (
-        <div key={alert.id} className="rounded-[16px] border px-3 py-2.5 transition-colors duration-200" style={alertStyle(alert.severity)}>
-          <div className="flex items-start gap-3">
-            <div
-              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[0.72rem] font-semibold"
-              style={{
-                borderColor:
-                  alert.severity === 'critical'
-                    ? 'color-mix(in srgb, var(--danger) 38%, var(--border))'
-                    : alert.severity === 'warning'
-                      ? 'color-mix(in srgb, var(--warning) 34%, var(--border))'
-                      : 'color-mix(in srgb, var(--info) 28%, var(--border))',
-                color:
-                  alert.severity === 'critical'
-                    ? 'var(--danger)'
-                    : alert.severity === 'warning'
-                      ? 'var(--warning)'
-                      : 'var(--info)',
-                background: 'var(--surface)',
-              }}
-            >
-              {severityIcon(alert.severity)}
+  return (
+    <ul className="grid h-full min-h-0 content-start gap-1.5 overflow-auto">
+      {alerts.map((alert) => {
+        const color = toneColor(severityTone(alert.severity))
+        return (
+          <li
+            key={alert.id}
+            className="hl-well grid grid-cols-[3px_minmax(0,1fr)] gap-x-2.5 overflow-hidden py-2 pr-2.5"
+          >
+            <span className="row-span-2 -my-2 rounded-r-sm" style={{ background: color }} />
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="truncate text-[12.5px] font-medium text-[var(--text)]">{alert.title}</span>
+              <span className="shrink-0 text-[10.5px] font-medium uppercase tracking-[0.06em]" style={{ color }}>
+                {alert.severity}
+              </span>
             </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-[0.82rem] font-semibold tracking-[-0.02em] text-[var(--text)]">{alert.title}</div>
-                <StatusBadge tone={alert.severity === 'critical' ? 'critical' : alert.severity === 'warning' ? 'warning' : 'info'} label={alert.severity} />
-              </div>
-              <p className="mt-1 text-[0.78rem] leading-5 text-[var(--text-muted)]">{alert.message}</p>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
+            <p className="text-[11.5px] leading-[1.45] text-[var(--text-muted)]">{alert.message}</p>
+          </li>
+        )
+      })}
+    </ul>
   )
 }

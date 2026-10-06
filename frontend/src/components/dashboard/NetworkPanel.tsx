@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getBridgeConnectionStatus, updateBridgeConnection } from '../../data/telemetryGateway'
 import type { BridgeStatus, ConnectionStatus, ControlModeState, UiTone } from '../../types/telemetry'
+import { BoolIndicator, StatRow } from '../viz/viz'
 import { DashboardCard } from './DashboardCard'
 import { StatusBadge } from './StatusBadge'
 
@@ -101,115 +102,69 @@ export function NetworkPanel({ data, tone, bridgeStatus, controlMode }: NetworkP
 
   return (
     <DashboardCard
-      title="Bridge / Network"
-      subtitle="backend and robot link"
-      accent="primary"
-      className="min-h-[0]"
+      title="Connection"
+      subtitle="bridge and robot link"
       headerSlot={<StatusBadge tone={tone} label={data.health} />}
     >
-      <div className="grid gap-2">
-        <div className="grid gap-2 sm:grid-cols-2">
-          <div className="rounded-[16px] border border-[var(--border)] bg-[var(--surface-alt)]/82 px-3 py-2.5">
-            <div className="mb-1.5 flex items-center justify-between gap-3">
-              <div className="text-[0.62rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
-                Local backend
-              </div>
-              <StatusBadge tone={localBackendOnline ? 'good' : 'critical'} label={localBackendOnline ? 'online' : 'offline'} />
-            </div>
-            <div className="text-[0.8rem] text-[var(--text)]">{bridgeStatus?.transport ?? 'networktables'}</div>
-          </div>
+      <div className="grid gap-3">
+        <div className="grid grid-cols-2 gap-1.5">
+          <BoolIndicator label="Local bridge" value={localBackendOnline} onLabel="online" offLabel="offline" />
+          <BoolIndicator label="Robot link" value={robotLinkOnline} onLabel="connected" offLabel="waiting" offTone="warning" />
+        </div>
 
-          <div className="rounded-[16px] border border-[var(--border)] bg-[var(--surface-alt)]/82 px-3 py-2.5">
-            <div className="mb-1.5 flex items-center justify-between gap-3">
-              <div className="text-[0.62rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
-                Robot link
-              </div>
-              <StatusBadge tone={robotLinkOnline ? 'good' : 'warning'} label={robotLinkOnline ? 'connected' : 'waiting'} />
-            </div>
-            <div className="text-[0.8rem] text-[var(--text)]">{data.routeLabel}</div>
+        <div className="grid grid-cols-2 gap-x-5">
+          <StatRow label="Target" value={configuredHost} />
+          <StatRow label="Host seen" value={data.hostSeen} />
+          <StatRow label="Team" value={bridgeStatus?.teamNumber ? String(bridgeStatus.teamNumber) : String(data.team || '--')} />
+          <StatRow label="Transport" value={bridgeStatus?.transport ?? 'networktables'} />
+          <StatRow label="Route" value={data.routeLabel} />
+          <StatRow label="Auto sync" value={controlMode?.syncStatus ?? 'unknown'} tone={syncTone(controlMode?.syncStatus)} />
+        </div>
+
+        <div className="grid gap-1.5">
+          <label className="hl-label" htmlFor="robot-host-override">
+            Robot host / IP override
+          </label>
+          <div className="flex gap-1.5">
+            <input
+              id="robot-host-override"
+              value={manualHostInput}
+              onChange={(event) => setManualHostInput(event.target.value)}
+              placeholder="10.12.34.11 or raspberrypi.local"
+              className="hl-input font-mono"
+            />
+            <button
+              type="button"
+              onClick={() => void handleApplyHost()}
+              disabled={isSubmitting || !localBackendOnline}
+              className="hl-btn"
+            >
+              Save
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => void handleReconnect()}
+              disabled={isSubmitting || (!localBackendOnline && !canRetryLocalBackend)}
+              className="hl-btn"
+            >
+              {localBackendOnline ? 'Reconnect' : 'Restart bridge'}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleUseTeamAuto()}
+              disabled={isSubmitting || !localBackendOnline}
+              className="hl-btn hl-btn-ghost"
+            >
+              Use team discovery
+            </button>
           </div>
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-2">
-          {[
-            ['Configured target', configuredHost],
-            ['Host seen', data.hostSeen],
-            ['Team', bridgeStatus?.teamNumber ? String(bridgeStatus.teamNumber) : String(data.team || '--')],
-            ['Chooser', bridgeStatus?.chooserPath ?? 'SmartDashboard/Auto mode'],
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-[16px] border border-[var(--border)] bg-[var(--surface-alt)]/82 px-3 py-2.5">
-              <div className="text-[0.62rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">{label}</div>
-              <div className="mt-1.5 text-[0.8rem] text-[var(--text)]">{value}</div>
-            </div>
-          ))}
-        </div>
-
-        <div className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-alt)]/78 px-4 py-4">
-          <div className="text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
-            Bridge control
-          </div>
-          <div className="mt-2 text-[0.8rem] leading-6 text-[var(--text-muted)]">
-            Hotloop keeps the bridge alive in the background. Use reconnect to refresh the robot link, or set a manual host/IP such as an address, `roborio-1234-frc.local`, or `raspberrypi.local` when you do not want to rely on the default discovery route.
-          </div>
-
-          <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
-            <label className="grid gap-2">
-              <span className="text-[0.62rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
-                Robot host / IP override
-              </span>
-              <input
-                value={manualHostInput}
-                onChange={(event) => setManualHostInput(event.target.value)}
-                placeholder="10.12.34.11, roborio-1234-frc.local or raspberrypi.local"
-                className="rounded-[14px] border border-[var(--border)] bg-[var(--surface)]/82 px-3 py-2.5 text-[0.82rem] text-[var(--text)] outline-none transition-colors focus:border-[var(--primary)]"
-              />
-            </label>
-
-            <div className="flex flex-wrap items-end gap-2">
-              <button
-                type="button"
-                onClick={() => void handleApplyHost()}
-                disabled={isSubmitting || !localBackendOnline}
-                className="rounded-[14px] border border-[var(--primary)]/28 bg-[var(--primary-soft)] px-4 py-2.5 text-[0.74rem] font-semibold uppercase tracking-[0.14em] text-[var(--text)] transition-colors hover:bg-[var(--primary-soft)] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Save host
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleReconnect()}
-                disabled={isSubmitting || (!localBackendOnline && !canRetryLocalBackend)}
-                className="rounded-[14px] border border-[var(--border)] bg-[var(--surface)]/84 px-4 py-2.5 text-[0.74rem] font-semibold uppercase tracking-[0.14em] text-[var(--text)] transition-colors hover:bg-[var(--surface)] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {localBackendOnline ? 'Reconnect' : 'Retry backend'}
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleUseTeamAuto()}
-                disabled={isSubmitting || !localBackendOnline}
-                className="rounded-[14px] border border-[var(--border)] bg-[var(--surface)]/84 px-4 py-2.5 text-[0.74rem] font-semibold uppercase tracking-[0.14em] text-[var(--text)] transition-colors hover:bg-[var(--surface)] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Use team auto
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid gap-2 sm:grid-cols-2">
-          <div className="rounded-[16px] border border-[var(--border)] bg-[var(--surface-alt)]/82 px-3 py-2.5">
-            <div className="mb-1.5 flex items-center justify-between gap-3">
-              <div className="text-[0.62rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">AUTOMODE sync</div>
-              <StatusBadge tone={syncTone(controlMode?.syncStatus)} label={controlMode?.syncStatus ?? 'unknown'} />
-            </div>
-            <div className="text-[0.8rem] text-[var(--text)]">{controlMode?.message ?? '--'}</div>
-          </div>
-
-          <div className="rounded-[16px] border border-[var(--border)] bg-[var(--surface-alt)]/82 px-3 py-2.5">
-            <div className="text-[0.62rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">Backend status</div>
-            <div className="mt-1.5 text-[0.8rem] text-[var(--text)]">
-              {actionMessage ?? bridgeStatus?.message ?? 'Backend service ready.'}
-            </div>
-          </div>
-        </div>
+        <p className="text-[11.5px] leading-5 text-[var(--text-muted)]">
+          {actionMessage ?? controlMode?.message ?? bridgeStatus?.message ?? 'Bridge ready.'}
+        </p>
       </div>
     </DashboardCard>
   )

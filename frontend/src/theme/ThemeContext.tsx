@@ -5,7 +5,7 @@ import {
   type PropsWithChildren,
 } from 'react'
 import { ThemeContext } from './themeContextStore'
-import { themes, type ThemeId } from './themes'
+import { DEFAULT_THEME_ID, themes, type ThemeId } from './themes'
 import { toCssVariables } from './tokens'
 
 const STORAGE_KEY = 'amr-telemetry-theme'
@@ -13,7 +13,7 @@ const STORAGE_KEY = 'amr-telemetry-theme'
 export function ThemeProvider({ children }: PropsWithChildren) {
   const [themeId, setThemeId] = useState<ThemeId>(() => {
     const storedTheme = window.localStorage.getItem(STORAGE_KEY) as ThemeId | null
-    return storedTheme && themes[storedTheme] ? storedTheme : 'neutralPastel'
+    return storedTheme && themes[storedTheme] ? storedTheme : DEFAULT_THEME_ID
   })
 
   const theme = useMemo(() => themes[themeId], [themeId])

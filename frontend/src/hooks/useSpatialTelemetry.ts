@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useSyncExternalStore } from 'react'
 import { getSpatialSnapshot, subscribeSpatialTelemetry } from '../data/spatialGateway'
 import { createOfflineSpatialSnapshot } from '../data/mockTelemetry'
-import { useTelemetryMode } from '../telemetry-mode/useTelemetryMode'
+import { getTelemetryMode, subscribeTelemetryMode } from '../telemetry-mode/telemetryModeStore'
 import type { SpatialSnapshot } from '../types/telemetry'
 
 const TICK_MS = 150
@@ -54,31 +54,62 @@ function toBridgeOfflineSpatialSnapshot(previous?: SpatialSnapshot): SpatialSnap
   }
 }
 
+/*
+ * One shared poller for every consumer (map page, map widget, pose widget).
+ * It starts with the first subscriber, restarts when the telemetry mode
+ * changes, and stops when the last subscriber leaves.
+ */
+let sharedSnapshot: SpatialSnapshot = createOfflineSpatialSnapshot()
+const sharedListeners = new Set<() => void>()
+let stopShared: (() => void) | null = null
+let sharedMode: string | null = null
+
+function emitShared(next: SpatialSnapshot) {
+  if (next === sharedSnapshot) {
+    return
+  }
+  sharedSnapshot = next
+  sharedListeners.forEach((listener) => listener())
+}
+
+function startShared() {
+  stopShared?.()
+  sharedMode = getTelemetryMode()
+  stopShared = subscribeSpatialTelemetry(
+    (incoming) => emitShared(mergeIncomingSpatial(sharedSnapshot, incoming)),
+    () => {
+      if (sharedSnapshot.connection.online) {
+        emitShared(toBridgeOfflineSpatialSnapshot(sharedSnapshot))
+      }
+    },
+    TICK_MS,
+  )
+  void getSpatialSnapshot()
+}
+
+function subscribeShared(listener: () => void) {
+  sharedListeners.add(listener)
+  if (!stopShared || sharedMode !== getTelemetryMode()) {
+    startShared()
+  }
+
+  return () => {
+    sharedListeners.delete(listener)
+    if (sharedListeners.size === 0) {
+      stopShared?.()
+      stopShared = null
+    }
+  }
+}
+
+subscribeTelemetryMode(() => {
+  if (sharedListeners.size > 0) {
+    startShared()
+  }
+})
+
+const getSharedSnapshot = () => sharedSnapshot
+
 export function useSpatialTelemetry(): SpatialSnapshot {
-  const { mode } = useTelemetryMode()
-  const [snapshot, setSnapshot] = useState(() => createOfflineSpatialSnapshot())
-
-  useEffect(() => {
-    const unsubscribe = subscribeSpatialTelemetry(
-      (incoming) => {
-        setSnapshot((previous) => mergeIncomingSpatial(previous, incoming))
-      },
-      () => {
-        setSnapshot((previous) => {
-          if (!previous.connection.online) {
-            return previous
-          }
-
-          return toBridgeOfflineSpatialSnapshot(previous)
-        })
-      },
-      TICK_MS,
-    )
-
-    void getSpatialSnapshot()
-
-    return unsubscribe
-  }, [mode])
-
-  return snapshot
+  return useSyncExternalStore(subscribeShared, getSharedSnapshot, getSharedSnapshot)
 }

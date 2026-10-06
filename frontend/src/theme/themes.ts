@@ -1,11 +1,8 @@
 import type { ThemeTokens } from './tokens'
 
-export type ThemeId =
-  | 'neutralPastel'
-  | 'darkTechnical'
-  | 'fieldCopper'
-  | 'radarForest'
-  | 'slateSignal'
+export type ThemeId = 'graphite' | 'slate' | 'midnight'
+
+export const DEFAULT_THEME_ID: ThemeId = 'graphite'
 
 export interface ThemeDefinition {
   id: ThemeId
@@ -15,259 +12,160 @@ export interface ThemeDefinition {
   tokens: ThemeTokens
 }
 
-interface SemanticThemePalette {
-  bgPrimary: string
-  bgSurface: string
-  bgElevated: string
-  bgSubtle: string
-  accentPrimary: string
-  accentPrimarySoft: string
-  accentSecondary: string
-  accentSecondarySoft: string
-  statusSuccess: string
-  statusSuccessSoft: string
-  statusWarning: string
-  statusWarningSoft: string
-  statusError: string
-  statusErrorSoft: string
-  statusInfo: string
-  statusInfoSoft: string
-  textPrimary: string
-  textSecondary: string
-  textMuted: string
-  border: string
-  borderStrong: string
-  cardShadow: string
-  cardShadowStrong: string
-  gridLine: string
-  gaugeTrack: string
-  gaugeTick: string
-  overlay: string
+interface ThemePalette {
+  bg: string
+  panel: string
+  panel2: string
+  panel3: string
+  line: string
+  line2: string
+  fg: string
+  fg2: string
+  fg3: string
+  fg4: string
+  primary: string
+  accent: string
+  success: string
+  warning: string
+  danger: string
+  info: string
+  series: [string, string, string, string, string, string]
 }
 
-function createThemeTokens(palette: SemanticThemePalette): ThemeTokens {
+function soft(color: string, alpha: number) {
+  return `color-mix(in srgb, ${color} ${Math.round(alpha * 100)}%, transparent)`
+}
+
+function createThemeTokens(p: ThemePalette): ThemeTokens {
   return {
-    bgPrimary: palette.bgPrimary,
-    bgSurface: palette.bgSurface,
-    bgElevated: palette.bgElevated,
-    accentPrimary: palette.accentPrimary,
-    accentPrimarySoft: palette.accentPrimarySoft,
-    accentSecondary: palette.accentSecondary,
-    accentSecondarySoft: palette.accentSecondarySoft,
-    statusSuccess: palette.statusSuccess,
-    statusSuccessSoft: palette.statusSuccessSoft,
-    statusWarning: palette.statusWarning,
-    statusWarningSoft: palette.statusWarningSoft,
-    statusError: palette.statusError,
-    statusErrorSoft: palette.statusErrorSoft,
-    statusInfo: palette.statusInfo,
-    statusInfoSoft: palette.statusInfoSoft,
-    textPrimary: palette.textPrimary,
-    textSecondary: palette.textSecondary,
-    textMuted: palette.textMuted,
-    background: palette.bgPrimary,
-    backgroundSubtle: palette.bgSubtle,
-    surface: palette.bgSurface,
-    surfaceAlt: palette.bgSubtle,
-    surfaceRaised: palette.bgElevated,
-    border: palette.border,
-    borderStrong: palette.borderStrong,
-    text: palette.textPrimary,
-    primary: palette.accentPrimary,
-    primarySoft: palette.accentPrimarySoft,
-    success: palette.statusSuccess,
-    successSoft: palette.statusSuccessSoft,
-    warning: palette.statusWarning,
-    warningSoft: palette.statusWarningSoft,
-    danger: palette.statusError,
-    dangerSoft: palette.statusErrorSoft,
-    accent: palette.accentSecondary,
-    accentSoft: palette.accentSecondarySoft,
-    info: palette.statusInfo,
-    infoSoft: palette.statusInfoSoft,
-    cardShadow: palette.cardShadow,
-    cardShadowStrong: palette.cardShadowStrong,
-    gridLine: palette.gridLine,
-    gaugeTrack: palette.gaugeTrack,
-    gaugeTick: palette.gaugeTick,
-    overlay: palette.overlay,
+    bgPrimary: p.bg,
+    bgSurface: p.panel,
+    bgElevated: p.panel3,
+    accentPrimary: p.primary,
+    accentPrimarySoft: soft(p.primary, 0.14),
+    accentSecondary: p.accent,
+    accentSecondarySoft: soft(p.accent, 0.14),
+    statusSuccess: p.success,
+    statusSuccessSoft: soft(p.success, 0.14),
+    statusWarning: p.warning,
+    statusWarningSoft: soft(p.warning, 0.14),
+    statusError: p.danger,
+    statusErrorSoft: soft(p.danger, 0.16),
+    statusInfo: p.info,
+    statusInfoSoft: soft(p.info, 0.14),
+    textPrimary: p.fg,
+    textSecondary: p.fg2,
+    textMuted: p.fg3,
+    textFaint: p.fg4,
+    background: p.bg,
+    backgroundSubtle: p.panel2,
+    surface: p.panel,
+    surfaceAlt: p.panel2,
+    surfaceRaised: p.panel3,
+    border: p.line,
+    borderStrong: p.line2,
+    text: p.fg,
+    primary: p.primary,
+    primarySoft: soft(p.primary, 0.14),
+    success: p.success,
+    successSoft: soft(p.success, 0.14),
+    warning: p.warning,
+    warningSoft: soft(p.warning, 0.14),
+    danger: p.danger,
+    dangerSoft: soft(p.danger, 0.16),
+    accent: p.accent,
+    accentSoft: soft(p.accent, 0.14),
+    info: p.info,
+    infoSoft: soft(p.info, 0.14),
+    cardShadow: '0 1px 0 rgba(255, 255, 255, 0.02) inset, 0 8px 24px rgba(0, 0, 0, 0.28)',
+    cardShadowStrong: '0 24px 64px rgba(0, 0, 0, 0.55)',
+    gridLine: soft(p.fg, 0.035),
+    gaugeTrack: p.panel3,
+    gaugeTick: p.fg4,
+    overlay: soft(p.bg, 0.82),
+    series1: p.series[0],
+    series2: p.series[1],
+    series3: p.series[2],
+    series4: p.series[3],
+    series5: p.series[4],
+    series6: p.series[5],
   }
 }
 
 export const themes: Record<ThemeId, ThemeDefinition> = {
-  neutralPastel: {
-    id: 'neutralPastel',
-    label: 'Hotloop Night',
-    description: 'Deep-black operator console with graphite surfaces, espresso copper focus and integrated cobalt highlights.',
+  graphite: {
+    id: 'graphite',
+    label: 'Graphite',
+    description: 'Warm graphite surfaces with an ember accent. Default operator theme.',
     colorScheme: 'dark',
     tokens: createThemeTokens({
-      bgPrimary: '#050608',
-      bgSurface: '#101317',
-      bgElevated: '#181d24',
-      bgSubtle: '#121821',
-      accentPrimary: '#8b5a3c',
-      accentPrimarySoft: 'rgba(139, 90, 60, 0.2)',
-      accentSecondary: '#3d8bff',
-      accentSecondarySoft: 'rgba(61, 139, 255, 0.16)',
-      statusSuccess: '#7ccb52',
-      statusSuccessSoft: 'rgba(124, 203, 82, 0.16)',
-      statusWarning: '#f0b454',
-      statusWarningSoft: 'rgba(240, 180, 84, 0.16)',
-      statusError: '#ef6f64',
-      statusErrorSoft: 'rgba(239, 111, 100, 0.16)',
-      statusInfo: '#56b5ff',
-      statusInfoSoft: 'rgba(86, 181, 255, 0.16)',
-      textPrimary: '#ffffff',
-      textSecondary: '#d7dde8',
-      textMuted: '#8f98aa',
-      border: '#242a34',
-      borderStrong: '#344154',
-      cardShadow: '0 14px 34px rgba(0, 0, 0, 0.34)',
-      cardShadowStrong: '0 22px 56px rgba(0, 0, 0, 0.48)',
-      gridLine: 'rgba(61, 139, 255, 0.1)',
-      gaugeTrack: '#232a33',
-      gaugeTick: '#9aa6ba',
-      overlay: 'rgba(5, 6, 8, 0.8)',
+      bg: '#0f0e0d',
+      panel: '#151412',
+      panel2: '#1b1a17',
+      panel3: '#22201d',
+      line: 'rgba(250, 250, 249, 0.08)',
+      line2: 'rgba(250, 250, 249, 0.16)',
+      fg: '#fafaf9',
+      fg2: '#d6d4cf',
+      fg3: '#a6a39c',
+      fg4: '#6f6c66',
+      primary: '#f59e42',
+      accent: '#4fd1c5',
+      success: '#5bd68a',
+      warning: '#f5c542',
+      danger: '#f2555a',
+      info: '#60a5fa',
+      series: ['#60a5fa', '#f59e42', '#4fd1c5', '#c084fc', '#f472b6', '#a3e635'],
     }),
   },
-  darkTechnical: {
-    id: 'darkTechnical',
-    label: 'Dark Technical',
-    description: 'Low-light technical theme with restrained contrast and reliable status colors.',
+  slate: {
+    id: 'slate',
+    label: 'Slate',
+    description: 'Cool blue-grey surfaces with a signal-blue accent.',
     colorScheme: 'dark',
     tokens: createThemeTokens({
-      bgPrimary: '#0a1020',
-      bgSurface: '#121a2f',
-      bgElevated: '#1f2b48',
-      bgSubtle: '#19233d',
-      accentPrimary: '#6f95ff',
-      accentPrimarySoft: 'rgba(111, 149, 255, 0.18)',
-      accentSecondary: '#63c5e6',
-      accentSecondarySoft: 'rgba(99, 197, 230, 0.18)',
-      statusSuccess: '#4fd09d',
-      statusSuccessSoft: 'rgba(79, 208, 157, 0.18)',
-      statusWarning: '#e7ad54',
-      statusWarningSoft: 'rgba(231, 173, 84, 0.18)',
-      statusError: '#ef6d7a',
-      statusErrorSoft: 'rgba(239, 109, 122, 0.18)',
-      statusInfo: '#87b3ff',
-      statusInfoSoft: 'rgba(135, 179, 255, 0.18)',
-      textPrimary: '#edf4ff',
-      textSecondary: '#c2d0e5',
-      textMuted: '#8ea4c5',
-      border: '#243554',
-      borderStrong: '#3f5c87',
-      cardShadow: '0 16px 40px rgba(0, 0, 0, 0.26)',
-      cardShadowStrong: '0 22px 60px rgba(0, 0, 0, 0.34)',
-      gridLine: 'rgba(125, 162, 216, 0.12)',
-      gaugeTrack: '#243554',
-      gaugeTick: '#8ea4c5',
-      overlay: 'rgba(10, 16, 32, 0.72)',
+      bg: '#0b0d10',
+      panel: '#111418',
+      panel2: '#171b21',
+      panel3: '#1e232a',
+      line: 'rgba(226, 232, 240, 0.08)',
+      line2: 'rgba(226, 232, 240, 0.16)',
+      fg: '#f4f6f8',
+      fg2: '#cfd5dd',
+      fg3: '#98a2b0',
+      fg4: '#636c78',
+      primary: '#5aa2ff',
+      accent: '#34d399',
+      success: '#4ade80',
+      warning: '#fbbf24',
+      danger: '#f87171',
+      info: '#38bdf8',
+      series: ['#5aa2ff', '#fb923c', '#34d399', '#c084fc', '#f472b6', '#facc15'],
     }),
   },
-  fieldCopper: {
-    id: 'fieldCopper',
-    label: 'Field Copper',
-    description: 'Warm field-side palette with brass accents and lighter instrumentation surfaces.',
-    colorScheme: 'light',
-    tokens: createThemeTokens({
-      bgPrimary: '#efe8dd',
-      bgSurface: '#fcf7f0',
-      bgElevated: '#fffaf3',
-      bgSubtle: '#f1e8dd',
-      accentPrimary: '#8a6d4d',
-      accentPrimarySoft: '#ebdecf',
-      accentSecondary: '#4a7d8f',
-      accentSecondarySoft: '#d8e8ee',
-      statusSuccess: '#4f8a6b',
-      statusSuccessSoft: '#dbeee4',
-      statusWarning: '#cb8a2c',
-      statusWarningSoft: '#f7e4c6',
-      statusError: '#b75d51',
-      statusErrorSoft: '#f2ddd8',
-      statusInfo: '#6d92cf',
-      statusInfoSoft: '#dfe9f7',
-      textPrimary: '#2f261f',
-      textSecondary: '#5b4d40',
-      textMuted: '#75685b',
-      border: '#d2c4b4',
-      borderStrong: '#ae8f6d',
-      cardShadow: '0 14px 34px rgba(96, 74, 51, 0.12)',
-      cardShadowStrong: '0 22px 48px rgba(96, 74, 51, 0.18)',
-      gridLine: 'rgba(143, 109, 74, 0.12)',
-      gaugeTrack: '#dac8b5',
-      gaugeTick: '#9a7c5e',
-      overlay: 'rgba(252, 247, 240, 0.74)',
-    }),
-  },
-  radarForest: {
-    id: 'radarForest',
-    label: 'Radar Forest',
-    description: 'Dark green operations deck with radar-inspired contrast and softer highlights.',
+  midnight: {
+    id: 'midnight',
+    label: 'Midnight',
+    description: 'True black with maximum contrast for bright arenas and projectors.',
     colorScheme: 'dark',
     tokens: createThemeTokens({
-      bgPrimary: '#07130f',
-      bgSurface: '#10211b',
-      bgElevated: '#1b332a',
-      bgSubtle: '#162a22',
-      accentPrimary: '#59c38f',
-      accentPrimarySoft: 'rgba(89, 195, 143, 0.18)',
-      accentSecondary: '#5eb8c6',
-      accentSecondarySoft: 'rgba(94, 184, 198, 0.18)',
-      statusSuccess: '#7dda8a',
-      statusSuccessSoft: 'rgba(125, 218, 138, 0.18)',
-      statusWarning: '#e5b75c',
-      statusWarningSoft: 'rgba(229, 183, 92, 0.16)',
-      statusError: '#eb7373',
-      statusErrorSoft: 'rgba(235, 115, 115, 0.18)',
-      statusInfo: '#72a69a',
-      statusInfoSoft: 'rgba(114, 166, 154, 0.18)',
-      textPrimary: '#ecf6f0',
-      textSecondary: '#c3d9cf',
-      textMuted: '#9cb8ac',
-      border: '#224238',
-      borderStrong: '#3d6f5e',
-      cardShadow: '0 16px 42px rgba(0, 0, 0, 0.34)',
-      cardShadowStrong: '0 24px 58px rgba(0, 0, 0, 0.42)',
-      gridLine: 'rgba(110, 181, 148, 0.12)',
-      gaugeTrack: '#234338',
-      gaugeTick: '#87b39e',
-      overlay: 'rgba(7, 19, 15, 0.76)',
-    }),
-  },
-  slateSignal: {
-    id: 'slateSignal',
-    label: 'Slate Signal',
-    description: 'Blue-slate command surface with brighter signal accents and cooler contrast.',
-    colorScheme: 'dark',
-    tokens: createThemeTokens({
-      bgPrimary: '#10161d',
-      bgSurface: '#18232f',
-      bgElevated: '#263446',
-      bgSubtle: '#1f2b38',
-      accentPrimary: '#74a8ff',
-      accentPrimarySoft: 'rgba(116, 168, 255, 0.18)',
-      accentSecondary: '#6ac4d8',
-      accentSecondarySoft: 'rgba(106, 196, 216, 0.18)',
-      statusSuccess: '#58d4a2',
-      statusSuccessSoft: 'rgba(88, 212, 162, 0.18)',
-      statusWarning: '#f0b35d',
-      statusWarningSoft: 'rgba(240, 179, 93, 0.18)',
-      statusError: '#f1767f',
-      statusErrorSoft: 'rgba(241, 118, 127, 0.18)',
-      statusInfo: '#87b3ff',
-      statusInfoSoft: 'rgba(135, 179, 255, 0.18)',
-      textPrimary: '#eef4fb',
-      textSecondary: '#d2ddea',
-      textMuted: '#9aaec4',
-      border: '#304255',
-      borderStrong: '#55718f',
-      cardShadow: '0 14px 40px rgba(0, 0, 0, 0.28)',
-      cardShadowStrong: '0 22px 56px rgba(0, 0, 0, 0.36)',
-      gridLine: 'rgba(124, 163, 224, 0.12)',
-      gaugeTrack: '#324659',
-      gaugeTick: '#9bb1c9',
-      overlay: 'rgba(16, 22, 29, 0.76)',
+      bg: '#000000',
+      panel: '#0a0a0a',
+      panel2: '#121212',
+      panel3: '#1a1a1a',
+      line: 'rgba(255, 255, 255, 0.10)',
+      line2: 'rgba(255, 255, 255, 0.20)',
+      fg: '#ffffff',
+      fg2: '#e5e5e5',
+      fg3: '#a3a3a3',
+      fg4: '#6b6b6b',
+      primary: '#ffb020',
+      accent: '#22d3ee',
+      success: '#4ade80',
+      warning: '#facc15',
+      danger: '#ff4d4f',
+      info: '#60a5fa',
+      series: ['#22d3ee', '#ffb020', '#4ade80', '#c084fc', '#f472b6', '#60a5fa'],
     }),
   },
 }

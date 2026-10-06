@@ -76,7 +76,8 @@
     }
   },
   "dependencies": {
-    "@adobe/react-spectrum": "^3.46.2",
+    "@fontsource-variable/geist": "^5.3.0",
+    "@fontsource-variable/geist-mono": "^5.3.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },

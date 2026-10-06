@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { cn } from '../../lib/cn'
-import { formatClock } from '../../lib/format'
-import { HOME_WORKSPACE_PRESET_DEFINITIONS } from '../../home-workspace/homeWorkspacePresets'
+import { HOME_WORKSPACE_PRESET_DEFINITIONS, type HomeWorkspacePresetId } from '../../home-workspace/homeWorkspacePresets'
 import { isHomeWorkspaceTopicWidget } from '../../home-workspace/homeWorkspaceStore'
 import { useTelemetryCatalog } from '../../hooks/useTelemetryCatalog'
 import { useHomeWorkspace } from '../../home-workspace/useHomeWorkspace'
@@ -12,6 +11,8 @@ import type {
   TelemetrySnapshot,
   TelemetryTopic,
 } from '../../types/telemetry'
+import { EditIcon, PlusIcon } from '../shell/icons'
+import { EmptyHint } from '../viz/viz'
 import { HomeWorkspaceCanvas } from './home-workspace/HomeWorkspaceCanvas'
 import type { WorkspaceHistoryPoint } from './home-workspace/HomeWorkspaceWidgetRenderer'
 
@@ -25,57 +26,131 @@ function getNumericTopicValue(topic: TelemetryTopic | null) {
   return topic.value
 }
 
-function WorkspaceActionButton({
-  children,
-  onClick,
-  disabled = false,
-  active = false,
+function AddPanelMenu({
+  onAddTopic,
+  onAddIndicator,
+  onAddToggle,
+  onAddPreset,
 }: {
-  children: string
-  onClick: () => void
-  disabled?: boolean
-  active?: boolean
+  onAddTopic: () => void
+  onAddIndicator: () => void
+  onAddToggle: () => void
+  onAddPreset: (presetId: HomeWorkspacePresetId) => void
 }) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!open) {
+      return
+    }
+
+    const close = (event: PointerEvent | KeyboardEvent) => {
+      if (event instanceof KeyboardEvent ? event.key === 'Escape' : !rootRef.current?.contains(event.target as Node)) {
+        setOpen(false)
+      }
+    }
+
+    window.addEventListener('pointerdown', close)
+    window.addEventListener('keydown', close)
+    return () => {
+      window.removeEventListener('pointerdown', close)
+      window.removeEventListener('keydown', close)
+    }
+  }, [open])
+
+  const pick = (action: () => void) => () => {
+    action()
+    setOpen(false)
+  }
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={cn(
-        'rounded-full border px-3 py-1.5 text-[0.66rem] font-semibold uppercase tracking-[0.14em] transition-colors',
-        disabled
-          ? 'cursor-default border-[var(--border)] bg-[var(--surface)]/76 text-[var(--text-muted)]'
-          : active
-            ? 'border-[var(--primary)] bg-[var(--primary-soft)]/84 text-[var(--text)]'
-            : 'border-[var(--border)] bg-[var(--surface-alt)]/80 text-[var(--text)] hover:bg-[var(--surface)]',
-      )}
-    >
-      {children}
-    </button>
+    <div ref={rootRef} className="relative">
+      <button type="button" className="hl-btn h-7 px-2.5 text-[12px]" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+        <PlusIcon width="14" height="14" />
+        Add panel
+      </button>
+      {open ? (
+        <div className="hl-panel absolute top-[calc(100%+6px)] right-0 z-[40] w-[300px] bg-[var(--surface-alt)] p-1 shadow-[var(--card-shadow-strong)]">
+          <div className="hl-eyebrow px-2 pt-1.5 pb-1">From a topic</div>
+          {[
+            { label: 'Value / plot', hint: 'Any number, text or boolean topic', action: onAddTopic },
+            { label: 'Indicator', hint: 'On/off light for a boolean topic', action: onAddIndicator },
+            { label: 'Toggle button', hint: 'Write a boolean topic', action: onAddToggle },
+          ].map((item) => (
+            <button key={item.label} type="button" onClick={pick(item.action)} className="flex w-full flex-col rounded-[6px] px-2 py-1.5 text-left hover:bg-[var(--surface-raised)]">
+              <span className="text-[12.5px] text-[var(--text)]">{item.label}</span>
+              <span className="text-[11px] text-[var(--text-faint)]">{item.hint}</span>
+            </button>
+          ))}
+          <div className="my-1 h-px bg-[var(--border)]" />
+          <div className="hl-eyebrow px-2 pt-1 pb-1">Robot panels</div>
+          {HOME_WORKSPACE_PRESET_DEFINITIONS.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              onClick={pick(() => onAddPreset(preset.id))}
+              className="flex w-full flex-col rounded-[6px] px-2 py-1.5 text-left hover:bg-[var(--surface-raised)]"
+            >
+              <span className="text-[12.5px] text-[var(--text)]">{preset.label}</span>
+              <span className="truncate text-[11px] text-[var(--text-faint)]">{preset.description}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   )
 }
 
-function WorkspacePageTab({
+function PageTab({
   active,
   label,
-  onClick,
+  editable,
+  onSelect,
+  onRename,
 }: {
   active: boolean
   label: string
-  onClick: () => void
+  editable: boolean
+  onSelect: () => void
+  onRename: (value: string) => void
 }) {
+  const [editing, setEditing] = useState(false)
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        defaultValue={label}
+        onBlur={(event) => {
+          onRename(event.target.value)
+          setEditing(false)
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') event.currentTarget.blur()
+          if (event.key === 'Escape') setEditing(false)
+        }}
+        className="hl-input h-7 w-[120px] text-[12px]"
+        aria-label="Page name"
+      />
+    )
+  }
+
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={onSelect}
+      onDoubleClick={() => editable && setEditing(true)}
+      title={editable ? 'Double-click to rename' : undefined}
       className={cn(
-        'rounded-full border px-3 py-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.14em] transition-colors',
-        active
-          ? 'border-[var(--primary)]/34 bg-[color-mix(in_srgb,var(--primary)_16%,var(--surface)_84%)] text-[var(--text)]'
-          : 'border-[var(--border)] bg-[var(--surface-alt)]/72 text-[var(--text-muted)] hover:bg-[var(--surface)] hover:text-[var(--text)]',
+        'relative h-full shrink-0 px-2.5 text-[12.5px] font-medium transition-colors',
+        active ? 'text-[var(--text)]' : 'text-[var(--text-faint)] hover:text-[var(--text-secondary)]',
       )}
     >
       {label}
+      <span
+        className={cn('absolute right-2 bottom-0 left-2 h-[2px] rounded-full', active ? 'bg-[var(--primary)]' : 'bg-transparent')}
+      />
     </button>
   )
 }
@@ -110,9 +185,9 @@ export function HomeWorkspaceShell({
     moveWidget,
     resizeWidget,
     clearActivePage,
+    loadDefaultLayoutIntoActivePage,
   } = useHomeWorkspace()
-  const [editMode, setEditMode] = useState(true)
-  const [libraryOpen, setLibraryOpen] = useState(false)
+  const [editMode, setEditMode] = useState(false)
   const [historyByTopic, setHistoryByTopic] = useState<Record<string, WorkspaceHistoryPoint[]>>({})
   const widgetTopicKeysRef = useRef<string[]>([])
 
@@ -160,134 +235,88 @@ export function HomeWorkspaceShell({
   })
 
   return (
-    <section
-      className="relative flex h-full min-h-[560px] min-w-0 flex-col overflow-hidden rounded-[28px] border border-[var(--border-strong)]/70 bg-[color-mix(in_srgb,var(--surface)_74%,var(--background)_26%)]"
-      style={{ boxShadow: 'var(--card-shadow-strong)' }}
-    >
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 opacity-40"
-        style={{
-          backgroundImage:
-            'linear-gradient(to right, var(--grid-line) 1px, transparent 1px), linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px)',
-          backgroundSize: '42px 42px',
-        }}
-      />
-
-      <div className="relative z-[1] flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)]/72 px-4 py-3 xl:px-5">
-        <div className="min-w-0">
-          <div className="text-[0.66rem] font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">
-            Home Workspace
-          </div>
-          <div className="mt-1 flex flex-wrap items-center gap-2">
-            <h2 className="truncate text-[1.04rem] tracking-[-0.04em] text-[var(--text)]">
-              Operator widget builder
-            </h2>
-            <div className="rounded-full border border-[var(--border)] bg-[var(--surface)]/74 px-2.5 py-1 text-[0.64rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
-              Saved {formatClock(workspace.lastSavedAt)}
-            </div>
-            <div className="rounded-full border border-[var(--border)] bg-[var(--surface)]/74 px-2.5 py-1 text-[0.64rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
-              {catalog.topics.length} live topics
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <WorkspaceActionButton onClick={addTopicWidgetToActivePage}>Add topic widget</WorkspaceActionButton>
-          <WorkspaceActionButton onClick={() => setLibraryOpen((current) => !current)} active={libraryOpen}>
-            {libraryOpen ? 'Hide presets' : 'Preset library'}
-          </WorkspaceActionButton>
-          <WorkspaceActionButton onClick={() => setEditMode((current) => !current)} active={editMode}>
-            {editMode ? 'Builder On' : 'Builder Off'}
-          </WorkspaceActionButton>
-          <WorkspaceActionButton onClick={addPage} disabled={!canAddPage}>New page</WorkspaceActionButton>
-          <WorkspaceActionButton onClick={clearActivePage} disabled={activePage.widgets.length === 0}>
-            Clear page
-          </WorkspaceActionButton>
-        </div>
-      </div>
-
-      {libraryOpen ? (
-        <div className="relative z-[1] grid gap-3 border-b border-[var(--border)]/65 px-4 py-3 xl:grid-cols-4 xl:px-5">
-          {HOME_WORKSPACE_PRESET_DEFINITIONS.map((preset) => (
-            <div
-              key={preset.id}
-              className="rounded-[18px] border border-[var(--border)] bg-[var(--surface-alt)]/78 px-3 py-3"
-            >
-              <div className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                Preset
-              </div>
-              <div className="mt-2 text-[0.92rem] font-semibold tracking-[-0.03em] text-[var(--text)]">{preset.label}</div>
-              <div className="mt-2 text-[0.76rem] leading-6 text-[var(--text-muted)]">{preset.description}</div>
-              <div className="mt-3 flex items-center justify-between gap-3 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
-                <span>
-                  {preset.defaultWidth}x{preset.defaultHeight}
-                </span>
-                <WorkspaceActionButton onClick={() => addPresetWidgetToActivePage(preset.id)}>Add</WorkspaceActionButton>
-              </div>
-            </div>
-          ))}
-          <div className="rounded-[18px] border border-[var(--border)] bg-[color-mix(in_srgb,var(--success)_10%,var(--surface-alt)_90%)] px-3 py-3">
-            <div className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-              Quick Add
-            </div>
-            <div className="mt-2 text-[0.92rem] font-semibold tracking-[-0.03em] text-[var(--text)]">Boolean LED</div>
-            <div className="mt-2 text-[0.76rem] leading-6 text-[var(--text-muted)]">
-              Shortcut for a topic widget already configured with the `Boolean LED` renderer. You can also switch any topic widget to this renderer in the configure modal.
-            </div>
-            <div className="mt-3 flex items-center justify-between gap-3 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
-              <span>1x2 starter</span>
-              <WorkspaceActionButton onClick={addBooleanStarterToActivePage}>Create</WorkspaceActionButton>
-            </div>
-          </div>
-          <div className="rounded-[18px] border border-[var(--border)] bg-[color-mix(in_srgb,var(--primary)_10%,var(--surface-alt)_90%)] px-3 py-3">
-            <div className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-              Quick Add
-            </div>
-            <div className="mt-2 text-[0.92rem] font-semibold tracking-[-0.03em] text-[var(--text)]">Boolean Button</div>
-            <div className="mt-2 text-[0.76rem] leading-6 text-[var(--text-muted)]">
-              Narrow writable boolean toggle for LED, camera, lidar and any other boolean topic with write support.
-            </div>
-            <div className="mt-3 flex items-center justify-between gap-3 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
-              <span>1x2 starter</span>
-              <WorkspaceActionButton onClick={addBooleanButtonStarterToActivePage}>Create</WorkspaceActionButton>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      <div className="relative z-[1] flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)]/65 px-4 py-2 xl:px-5">
-        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto">
+    <section className="flex h-full min-h-0 min-w-0 flex-col">
+      <div className="flex h-9 shrink-0 items-stretch gap-2 border-b border-[var(--border)]">
+        <div className="flex min-w-0 flex-1 items-stretch overflow-x-auto">
           {workspace.pages.map((page) => (
-            <WorkspacePageTab
+            <PageTab
               key={page.id}
               active={page.id === activePage.id}
               label={page.title}
-              onClick={() => setActivePage(page.id)}
+              editable
+              onSelect={() => setActivePage(page.id)}
+              onRename={(value) => renamePage(page.id, value)}
             />
           ))}
+          <button
+            type="button"
+            onClick={addPage}
+            disabled={!canAddPage}
+            className="flex w-8 shrink-0 items-center justify-center text-[var(--text-faint)] hover:text-[var(--text)] disabled:opacity-30"
+            title="New page"
+            aria-label="New page"
+          >
+            <PlusIcon width="14" height="14" />
+          </button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            value={activePage.title}
-            onChange={(event) => renamePage(activePage.id, event.target.value)}
-            className="min-w-[140px] rounded-full border border-[var(--border)] bg-[var(--surface)]/84 px-3 py-1.5 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-[var(--text)] outline-none transition-colors focus:border-[var(--primary)]"
-            aria-label="Rename workspace page"
+        <div className="flex shrink-0 items-center gap-1.5 pb-1">
+          {editMode ? (
+            <>
+              <button type="button" className="hl-btn hl-btn-ghost h-7 px-2 text-[12px]" onClick={loadDefaultLayoutIntoActivePage}>
+                Reset to default
+              </button>
+              <button
+                type="button"
+                className="hl-btn hl-btn-ghost h-7 px-2 text-[12px]"
+                onClick={clearActivePage}
+                disabled={activePage.widgets.length === 0}
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                className="hl-btn hl-btn-ghost h-7 px-2 text-[12px] hover:!text-[var(--danger)]"
+                onClick={() => removePage(activePage.id)}
+                disabled={workspace.pages.length <= 1}
+              >
+                Delete page
+              </button>
+              <span className="mx-0.5 h-4 w-px bg-[var(--border)]" />
+            </>
+          ) : null}
+          <AddPanelMenu
+            onAddTopic={() => {
+              setEditMode(true)
+              addTopicWidgetToActivePage()
+            }}
+            onAddIndicator={() => {
+              setEditMode(true)
+              addBooleanStarterToActivePage()
+            }}
+            onAddToggle={() => {
+              setEditMode(true)
+              addBooleanButtonStarterToActivePage()
+            }}
+            onAddPreset={(presetId) => {
+              setEditMode(true)
+              addPresetWidgetToActivePage(presetId)
+            }}
           />
-          <div className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-            {activePage.widgets.length} widgets
-          </div>
-          <WorkspaceActionButton
-            onClick={() => removePage(activePage.id)}
-            disabled={workspace.pages.length <= 1}
+          <button
+            type="button"
+            aria-pressed={editMode}
+            onClick={() => setEditMode((current) => !current)}
+            className={cn('hl-btn h-7 px-2.5 text-[12px]', editMode && 'hl-btn-primary')}
+            title={editMode ? 'Lock the layout' : 'Move, resize and remove panels'}
           >
-            Remove page
-          </WorkspaceActionButton>
+            <EditIcon />
+            {editMode ? 'Done' : 'Edit layout'}
+          </button>
         </div>
       </div>
 
-      <div className="relative z-[1] flex-1 min-h-0 overflow-auto p-4 xl:p-5">
+      <div className="min-h-0 flex-1 overflow-auto pt-2 pr-0.5">
         {activePage.widgets.length ? (
           <HomeWorkspaceCanvas
             alerts={alerts}
@@ -304,23 +333,29 @@ export function HomeWorkspaceShell({
             onResizeWidget={resizeWidget}
           />
         ) : (
-          <div className="flex h-full min-h-[420px] flex-col items-center justify-center rounded-[24px] border border-dashed border-[var(--border)] bg-[color-mix(in_srgb,var(--surface)_42%,transparent)] px-6 py-8 text-center">
-            <div className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">
-              {activePage.title}
-            </div>
-            <div className="mt-3 text-[clamp(1.2rem,1.04rem+0.48vw,1.72rem)] tracking-[-0.05em] text-[var(--text)]">
-              This page is ready for custom widgets
-            </div>
-            <div className="mt-3 max-w-[56ch] text-[0.88rem] leading-7 text-[var(--text-muted)]">
-              Start with a topic widget, switch its renderer when needed, or drop a preset panel and shape the page around what you want to monitor. The Boolean LED is available both as a quick-add shortcut and as a renderer inside the widget configure modal.
-            </div>
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
-              <WorkspaceActionButton onClick={addTopicWidgetToActivePage}>Add first topic widget</WorkspaceActionButton>
-              <WorkspaceActionButton onClick={addBooleanStarterToActivePage}>Add Boolean LED</WorkspaceActionButton>
-              <WorkspaceActionButton onClick={addBooleanButtonStarterToActivePage}>Add Boolean Button</WorkspaceActionButton>
-              <WorkspaceActionButton onClick={() => addPresetWidgetToActivePage('battery-watch')}>Add Battery preset</WorkspaceActionButton>
-              <WorkspaceActionButton onClick={addPage} disabled={!canAddPage}>Create another page</WorkspaceActionButton>
-            </div>
+          <div className="flex h-full min-h-[320px] items-center justify-center rounded-[10px] border border-dashed border-[var(--border-strong)]">
+            <EmptyHint
+              title={`${activePage.title} is empty`}
+              action={
+                <div className="flex flex-wrap justify-center gap-1.5">
+                  <button type="button" className="hl-btn hl-btn-primary" onClick={loadDefaultLayoutIntoActivePage}>
+                    Load default Drive layout
+                  </button>
+                  <button
+                    type="button"
+                    className="hl-btn"
+                    onClick={() => {
+                      setEditMode(true)
+                      addTopicWidgetToActivePage()
+                    }}
+                  >
+                    Add a topic panel
+                  </button>
+                </div>
+              }
+            >
+              Map, pose, heading, battery, sensors and alerts — or build your own from any topic.
+            </EmptyHint>
           </div>
         )}
       </div>

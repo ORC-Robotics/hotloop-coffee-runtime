@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { HomeWorkspacePresetId } from './homeWorkspacePresets'
 import {
+  createDefaultDriveLayoutWidgets,
   createHomeWorkspaceBooleanButtonStarterWidget,
   HOME_WORKSPACE_MAX_PAGES,
   createHomeWorkspaceBooleanStarterWidget,
@@ -10,7 +11,7 @@ import {
   isHomeWorkspaceTopicWidget,
   loadHomeWorkspaceState,
   persistHomeWorkspaceState,
-  placeWidgetInLayout,
+  placeWidgetPushingOthers,
   type HomeWorkspaceState,
   type HomeWorkspacePresetWidgetConfig,
   type HomeWorkspaceWidget,
@@ -264,14 +265,7 @@ export function useHomeWorkspace() {
             return widgets
           }
 
-          const others = widgets.filter((widget) => widget.id !== widgetId)
-          const placed = placeWidgetInLayout(others, {
-            ...target,
-            x,
-            y,
-          })
-
-          return widgets.map((widget) => (widget.id === widgetId ? placed : widget))
+          return placeWidgetPushingOthers(widgets, { ...target, x, y })
         }),
       ),
     )
@@ -286,14 +280,7 @@ export function useHomeWorkspace() {
             return widgets
           }
 
-          const others = widgets.filter((widget) => widget.id !== widgetId)
-          const placed = placeWidgetInLayout(others, {
-            ...target,
-            w,
-            h,
-          })
-
-          return widgets.map((widget) => (widget.id === widgetId ? placed : widget))
+          return placeWidgetPushingOthers(widgets, { ...target, w, h })
         }),
       ),
     )
@@ -304,6 +291,12 @@ export function useHomeWorkspace() {
       commitState(current, (state) =>
         updateActivePageWidgets(state, () => []),
       ),
+    )
+  }
+
+  const loadDefaultLayoutIntoActivePage = () => {
+    setWorkspace((current) =>
+      commitState(current, (state) => updateActivePageWidgets(state, () => createDefaultDriveLayoutWidgets())),
     )
   }
 
@@ -324,5 +317,6 @@ export function useHomeWorkspace() {
     moveWidget,
     resizeWidget,
     clearActivePage,
+    loadDefaultLayoutIntoActivePage,
   }
 }
