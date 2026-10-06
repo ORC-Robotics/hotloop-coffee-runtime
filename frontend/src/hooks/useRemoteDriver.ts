@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useEffectEvent,
   useRef,
   useState,
   type PropsWithChildren,
@@ -429,7 +430,7 @@ function useRemoteDriverController() {
     })
   }, [clearGuidedCommand])
 
-  const flushZeroPacket = async (nextState?: CommandState) => {
+  const flushZeroPacket = useEffectEvent(async (nextState?: CommandState) => {
     keyboardStateRef.current = createEmptyKeyboardState()
     clearGuidedCommand()
     startTransition(() => {
@@ -465,7 +466,7 @@ function useRemoteDriverController() {
         setCommandState(nextState)
       }
     }
-  }
+  })
 
   useEffect(() => {
     let cancelled = false
@@ -710,7 +711,7 @@ function useRemoteDriverController() {
       cancelled = true
       window.clearInterval(interval)
     }
-  }, [mode, remoteDriver.mode, windowActive])
+  }, [clearGuidedCommand, mode, remoteDriver.mode, windowActive])
 
   useEffect(() => {
     if (remoteDriver.mode === 'teleop') {

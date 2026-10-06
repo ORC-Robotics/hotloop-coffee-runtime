@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { clamp } from '../lib/format'
 import {
   computeSpatialScanRegistration,
@@ -36,6 +36,11 @@ const TRAIL_MAX_POINTS = 720
 const TRAIL_APPEND_DISTANCE_MM = 24
 const TRAIL_APPEND_YAW_DEG = 3
 const LIDAR_HISTORY_MAX_SCANS = 12
+const IDLE_POSE_TRANSITION: SpatialPoseTransitionState = {
+  previous: null,
+  latest: null,
+  transitionMs: 0,
+}
 const OBSERVED_MAP_HISTORY_LIMIT_DEFAULT = 48
 const OBSERVED_MAP_HISTORY_LIMIT_OPTIONS = [24, 48, 96] as const
 const OCCUPANCY_CELL_SIZE_DEFAULT_MM = 80
@@ -80,7 +85,6 @@ export interface SpatialAnchorPoint {
 export interface SpatialPoseTransitionState {
   previous: PlanarPoseData | null
   latest: PlanarPoseData | null
-  receivedAtMs: number
   transitionMs: number
 }
 
@@ -680,10 +684,7 @@ function simplifyPlannerCellPath(path: SpatialOccupancyCell[]) {
   return simplified
 }
 
-function optimizePlannerCellPath(
-  path: SpatialOccupancyCell[],
-  _grid: SpatialGoalPlannerGrid,
-) {
+function optimizePlannerCellPath(path: SpatialOccupancyCell[]) {
   // Keep V1 conservative: we preserve the A* cell corridor and only allow
   // local corner smoothing when the buffered segment stays inside safe space.
   return path
@@ -978,7 +979,7 @@ function computeGoalPreview(
       }
 
       const simplifiedPath = simplifyPlannerCellPath(pathCells)
-      const optimizedPath = optimizePlannerCellPath(simplifiedPath, grid)
+      const optimizedPath = optimizePlannerCellPath(simplifiedPath)
       const rawPath: SpatialPathPreviewPoint[] = [{ xMm: pose.xMm, yMm: pose.yMm }]
 
       optimizedPath.slice(1).forEach((cell) => {
@@ -1119,6 +1120,32 @@ function computeGoalPreview(
   )
 }
 
+function bufferedLidarScanFromSelection(
+  selectedLidar: ResolvedSpatialLidar,
+  selectedPose: ResolvedSpatialPose,
+): SpatialBufferedLidarScan | null {
+  const points = decodeSpatialLidarPoints(selectedLidar.scan)
+  if (points.length === 0) {
+    return null
+  }
+
+  return {
+    timestampMs: selectedLidar.scan.timestampMs,
+    sequence: selectedLidar.scan.sequence,
+    frame: selectedLidar.scan.frame,
+    poseFrame: selectedLidar.scan.poseFrame,
+    freshness: selectedLidar.scan.freshness,
+    pose: {
+      xMm: selectedPose.pose.xMm,
+      yMm: selectedPose.pose.yMm,
+      yawDeg: selectedPose.pose.yawDeg,
+      frame: selectedPose.pose.frame,
+      source: selectedPose.pose.source,
+    },
+    points,
+  }
+}
+
 function observedMapScanFromSelection(
   selectedLidar: ResolvedSpatialLidar,
   selectedPose: ResolvedSpatialPose,
@@ -1179,19 +1206,18 @@ export function useSpatialViewModel(
   const [goalPreviewArmed, setGoalPreviewArmed] = useState(false)
   const [replayKey, setReplayKey] = useState<string | null>(null)
   const [nowMs, setNowMs] = useState(() => Date.now())
-  const [poseTransition, setPoseTransition] = useState<SpatialPoseTransitionState>(() => ({
-    previous: null,
-    latest: null,
-    receivedAtMs: performance.now(),
-    transitionMs: 0,
-  }))
-  const trailContextRef = useRef<string | null>(null)
-  const lidarContextRef = useRef<string | null>(null)
-  const observedMapContextRef = useRef<string | null>(null)
-  const goalContextRef = useRef<string | null>(null)
-  const lastLidarKeyRef = useRef<string | null>(null)
-  const lastObservedMapKeyRef = useRef<string | null>(null)
-  const hasAutoCenteredRef = useRef(false)
+  const [poseTransition, setPoseTransition] =
+    useState<SpatialPoseTransitionState>(IDLE_POSE_TRANSITION)
+  const [trailContext, setTrailContext] = useState<string | null>(null)
+  const [lidarContext, setLidarContext] = useState<string | null>(null)
+  const [observedMapContext, setObservedMapContext] = useState<string | null>(null)
+  const [goalResetTracker, setGoalResetTracker] = useState<{
+    inputsKey: string
+    context: string | null
+  } | null>(null)
+  const [lastLidarKey, setLastLidarKey] = useState<string | null>(null)
+  const [lastObservedMapKey, setLastObservedMapKey] = useState<string | null>(null)
+  const [hasAutoCentered, setHasAutoCentered] = useState(false)
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -1337,321 +1363,201 @@ export function useSpatialViewModel(
   )
   const mazeOverlay = useMemo(() => snapshot.maze ?? null, [snapshot.maze])
 
-  useEffect(() => {
-    setObservedMapScans((current) => current.slice(-observedMapHistoryLimit))
-  }, [observedMapHistoryLimit])
+  // Everything below follows the telemetry stream by adjusting state during
+  // render instead of in effects, so each update settles in a single pass.
+  // Every branch is a no-op once its state has caught up with the inputs.
 
-  useEffect(() => {
-    if (!selectedPose.isRenderable || hasAutoCenteredRef.current) {
-      return
-    }
-
-    setViewport((current) => ({
-      ...current,
+  let nextViewport = viewport
+  if (selectedPose.isRenderable && !hasAutoCentered) {
+    setHasAutoCentered(true)
+    nextViewport = {
+      ...nextViewport,
       centerXMm: selectedPose.pose.xMm,
       centerYMm: selectedPose.pose.yMm,
-    }))
-    hasAutoCenteredRef.current = true
-  }, [selectedPose.isRenderable, selectedPose.pose.xMm, selectedPose.pose.yMm])
-
-  useEffect(() => {
-    if (
-      !followRobot ||
-      replayMode !== 'live' ||
-      !activePose.available ||
-      activePose.freshness === 'invalid'
-    ) {
-      return
     }
-
-    setViewport((current) => {
-      if (current.centerXMm === activePose.xMm && current.centerYMm === activePose.yMm) {
-        return current
-      }
-
-      return {
-        ...current,
-        centerXMm: activePose.xMm,
-        centerYMm: activePose.yMm,
-      }
-    })
-  }, [
-    activePose.available,
-    activePose.freshness,
-    activePose.xMm,
-    activePose.yMm,
-    followRobot,
-    replayMode,
-  ])
-
-  useEffect(() => {
-    const pose = selectedPose.pose
-
-    if (!isRenderablePlanarPose(pose)) {
-      setPoseTransition({
-        previous: null,
-        latest: null,
-        receivedAtMs: performance.now(),
-        transitionMs: 0,
-      })
-      return
+  }
+  if (
+    followRobot &&
+    replayMode === 'live' &&
+    activePose.available &&
+    activePose.freshness !== 'invalid' &&
+    (nextViewport.centerXMm !== activePose.xMm || nextViewport.centerYMm !== activePose.yMm)
+  ) {
+    nextViewport = {
+      ...nextViewport,
+      centerXMm: activePose.xMm,
+      centerYMm: activePose.yMm,
     }
+  }
+  if (nextViewport !== viewport) {
+    setViewport(nextViewport)
+  }
 
-    setPoseTransition((current) => {
-      if (!poseTransitionChanged(current.latest, pose)) {
-        return current
-      }
+  const livePose = selectedPose.pose
+  if (!isRenderablePlanarPose(livePose)) {
+    if (poseTransition !== IDLE_POSE_TRANSITION) {
+      setPoseTransition(IDLE_POSE_TRANSITION)
+    }
+  } else if (poseTransitionChanged(poseTransition.latest, livePose)) {
+    const previousPose = poseTransition.latest
+    const canInterpolate =
+      previousPose !== null &&
+      previousPose.frame === livePose.frame &&
+      previousPose.source === livePose.source &&
+      previousPose.freshness === 'live' &&
+      livePose.freshness === 'live'
+    const transitionMs =
+      canInterpolate && previousPose !== null
+        ? Math.max(60, Math.min(180, livePose.timestampMs - previousPose.timestampMs || 120))
+        : 0
 
-      const canInterpolate =
-        current.latest !== null &&
-        current.latest.frame === pose.frame &&
-        current.latest.source === pose.source &&
-        current.latest.freshness === 'live' &&
-        pose.freshness === 'live'
-      const transitionMs =
-        canInterpolate && current.latest !== null
-          ? Math.max(60, Math.min(180, pose.timestampMs - current.latest.timestampMs || 120))
-          : 0
-
-      return {
-        previous: canInterpolate ? current.latest : pose,
-        latest: pose,
-        receivedAtMs: performance.now(),
-        transitionMs,
-      }
+    // The canvas stamps the start time when it first draws this transition.
+    setPoseTransition({
+      previous: canInterpolate ? previousPose : livePose,
+      latest: livePose,
+      transitionMs,
     })
-  }, [
-    selectedPose.pose.available,
-    selectedPose.pose.frame,
-    selectedPose.pose.freshness,
-    selectedPose.pose.sequence,
-    selectedPose.pose.source,
-    selectedPose.pose.timestampMs,
-    selectedPose.pose.xMm,
-    selectedPose.pose.yMm,
-    selectedPose.pose.yawDeg,
-  ])
+  }
 
-  useEffect(() => {
-    const pose = selectedPose.pose
-    const nextContext =
-      selectedPose.isRenderable && pose.frame
-        ? `${sourceOverride}:${pose.source}:${pose.frame}`
-        : null
-    const contextChanged = trailContextRef.current !== nextContext
-
-    if (!selectedPose.isRenderable) {
-      trailContextRef.current = nextContext
+  const nextTrailContext =
+    selectedPose.isRenderable && livePose.frame
+      ? `${sourceOverride}:${livePose.source}:${livePose.frame}`
+      : null
+  if (!selectedPose.isRenderable) {
+    if (trailContext !== null) {
+      setTrailContext(null)
+    }
+    if (trail.length > 0) {
       setTrail([])
-      return
     }
-
-    if (contextChanged) {
-      trailContextRef.current = nextContext
-      setTrail(pose.freshness === 'live' ? [toTrailPoint(pose)] : [])
-      return
+  } else if (trailContext !== nextTrailContext) {
+    setTrailContext(nextTrailContext)
+    setTrail(livePose.freshness === 'live' ? [toTrailPoint(livePose)] : [])
+  } else if (livePose.freshness === 'live') {
+    const nextPoint = toTrailPoint(livePose)
+    if (shouldAppendTrail(trail[trail.length - 1], nextPoint)) {
+      setTrail([...trail, nextPoint].slice(-TRAIL_MAX_POINTS))
     }
+  }
 
-    if (pose.freshness !== 'live') {
-      trailContextRef.current = nextContext
-      return
+  const liveScan = selectedLidar.scan
+  const nextLidarContext =
+    selectedLidar.isRenderable && selectedPose.isRenderable
+      ? `${sourceOverride}:${livePose.source}:${livePose.frame}:${liveScan.poseFrame}:${liveScan.frame}`
+      : null
+  const liveScanKey = `${liveScan.sequence}:${liveScan.timestampMs}`
+
+  if (nextLidarContext === null) {
+    if (lidarContext !== null) {
+      setLidarContext(null)
     }
+    if (lastLidarKey !== null) {
+      setLastLidarKey(null)
+    }
+    if (lidarHistory.length > 0) {
+      setLidarHistory([])
+    }
+  } else {
+    const contextChanged = lidarContext !== nextLidarContext
+    let nextKey = contextChanged ? null : lastLidarKey
+    let nextHistory = contextChanged && lidarHistory.length > 0 ? [] : lidarHistory
 
-    setTrail((current) => {
-      const nextPoint = toTrailPoint(pose)
-      const lastPoint = current[current.length - 1]
-
-      if (!shouldAppendTrail(lastPoint, nextPoint)) {
-        return current
+    if (liveScan.freshness === 'live' && nextKey !== liveScanKey) {
+      nextKey = liveScanKey
+      const sample = bufferedLidarScanFromSelection(selectedLidar, selectedPose)
+      if (sample) {
+        nextHistory = [...nextHistory, sample].slice(-LIDAR_HISTORY_MAX_SCANS)
       }
-
-      return [...current, nextPoint].slice(-TRAIL_MAX_POINTS)
-    })
-  }, [
-    selectedPose.isRenderable,
-    selectedPose.pose.available,
-    selectedPose.pose.frame,
-    selectedPose.pose.freshness,
-    selectedPose.pose.sequence,
-    selectedPose.pose.source,
-    selectedPose.pose.timestampMs,
-    selectedPose.pose.xMm,
-    selectedPose.pose.yMm,
-    selectedPose.pose.yawDeg,
-    sourceOverride,
-  ])
-
-  useEffect(() => {
-    const nextContext =
-      selectedLidar.isRenderable && selectedPose.isRenderable
-        ? `${sourceOverride}:${selectedPose.pose.source}:${selectedPose.pose.frame}:${selectedLidar.scan.poseFrame}:${selectedLidar.scan.frame}`
-        : null
-    const contextChanged = lidarContextRef.current !== nextContext
-
-    if (!selectedLidar.isRenderable || !selectedPose.isRenderable) {
-      lidarContextRef.current = nextContext
-      lastLidarKeyRef.current = null
-      setLidarHistory([])
-      return
     }
 
     if (contextChanged) {
-      lidarContextRef.current = nextContext
-      lastLidarKeyRef.current = null
-      setLidarHistory([])
+      setLidarContext(nextLidarContext)
     }
-
-    if (selectedLidar.scan.freshness !== 'live') {
-      return
+    if (nextKey !== lastLidarKey) {
+      setLastLidarKey(nextKey)
     }
-
-    const sampleKey = `${selectedLidar.scan.sequence}:${selectedLidar.scan.timestampMs}`
-    if (lastLidarKeyRef.current === sampleKey) {
-      return
+    if (nextHistory !== lidarHistory) {
+      setLidarHistory(nextHistory)
     }
+  }
 
-    lastLidarKeyRef.current = sampleKey
-
-    const points = decodeSpatialLidarPoints(selectedLidar.scan)
-    if (points.length === 0) {
-      return
+  if (nextLidarContext === null) {
+    if (observedMapContext !== null) {
+      setObservedMapContext(null)
     }
-
-    const sample: SpatialBufferedLidarScan = {
-      timestampMs: selectedLidar.scan.timestampMs,
-      sequence: selectedLidar.scan.sequence,
-      frame: selectedLidar.scan.frame,
-      poseFrame: selectedLidar.scan.poseFrame,
-      freshness: selectedLidar.scan.freshness,
-      pose: {
-        xMm: selectedPose.pose.xMm,
-        yMm: selectedPose.pose.yMm,
-        yawDeg: selectedPose.pose.yawDeg,
-        frame: selectedPose.pose.frame,
-        source: selectedPose.pose.source,
-      },
-      points,
+    if (lastObservedMapKey !== null) {
+      setLastObservedMapKey(null)
     }
-
-    setLidarHistory((current) => [...current, sample].slice(-LIDAR_HISTORY_MAX_SCANS))
-  }, [
-    selectedLidar.isRenderable,
-    selectedLidar.scan.frame,
-    selectedLidar.scan.freshness,
-    selectedLidar.scan.poseFrame,
-    selectedLidar.scan.sequence,
-    selectedLidar.scan.timestampMs,
-    selectedPose.isRenderable,
-    selectedPose.pose.frame,
-    selectedPose.pose.source,
-    selectedPose.pose.timestampMs,
-    selectedPose.pose.xMm,
-    selectedPose.pose.yMm,
-    selectedPose.pose.yawDeg,
-    sourceOverride,
-  ])
-
-  useEffect(() => {
-    const nextContext =
-      selectedLidar.isRenderable && selectedPose.isRenderable
-        ? `${sourceOverride}:${selectedPose.pose.source}:${selectedPose.pose.frame}:${selectedLidar.scan.poseFrame}:${selectedLidar.scan.frame}`
-        : null
-    const contextChanged = observedMapContextRef.current !== nextContext
-
-    if (!selectedLidar.isRenderable || !selectedPose.isRenderable) {
-      observedMapContextRef.current = nextContext
-      lastObservedMapKeyRef.current = null
+    if (observedMapScans.length > 0) {
       setObservedMapScans([])
-      setOccupancySessionScans([])
-      return
     }
-
-    if (contextChanged) {
-      observedMapContextRef.current = nextContext
-      lastObservedMapKeyRef.current = null
-      setObservedMapScans([])
+    if (occupancySessionScans.length > 0) {
       setOccupancySessionScans([])
     }
+  } else {
+    const contextChanged = observedMapContext !== nextLidarContext
+    let nextKey = contextChanged ? null : lastObservedMapKey
+    let nextScans = contextChanged && observedMapScans.length > 0 ? [] : observedMapScans
+    let nextSessionScans =
+      contextChanged && occupancySessionScans.length > 0 ? [] : occupancySessionScans
 
-    if (observedMapFrozen || selectedLidar.scan.freshness !== 'live') {
-      return
-    }
-
-    const sampleKey = `${selectedLidar.scan.sequence}:${selectedLidar.scan.timestampMs}`
-    if (lastObservedMapKeyRef.current === sampleKey) {
-      return
-    }
-
-    lastObservedMapKeyRef.current = sampleKey
-
-    const sample = observedMapScanFromSelection(selectedLidar, selectedPose)
-    if (!sample || sample.points.length === 0) {
-      return
-    }
-
-    setObservedMapScans((current) => {
-      const next = [...current, sample]
-      return next.slice(-observedMapHistoryLimit)
-    })
-    setOccupancySessionScans((current) => [...current, sample])
-  }, [
-    observedMapFrozen,
-    observedMapHistoryLimit,
-    selectedLidar.isRenderable,
-    selectedLidar.scan.frame,
-    selectedLidar.scan.freshness,
-    selectedLidar.scan.poseFrame,
-    selectedLidar.scan.sequence,
-    selectedLidar.scan.timestampMs,
-    selectedPose.isRenderable,
-    selectedPose.pose.frame,
-    selectedPose.pose.source,
-    selectedPose.pose.timestampMs,
-    selectedPose.pose.xMm,
-    selectedPose.pose.yMm,
-    selectedPose.pose.yawDeg,
-    sourceOverride,
-  ])
-
-  useEffect(() => {
-    if (replayKey && replaySelection === null) {
-      setReplayKey(null)
-    }
-  }, [replayKey, replaySelection])
-
-  useEffect(() => {
-    const nextContext =
-      activePose.available && activePose.frame
-        ? `${sourceOverride}:${activePose.source}:${activePose.frame}:${replayMode}`
-        : null
-    const contextChanged = goalContextRef.current !== nextContext
-
-    if (!activePose.available || activePose.freshness === 'invalid') {
-      goalContextRef.current = nextContext
-      setGoalRequest(null)
-      setGoalPreviewArmed(false)
-      return
+    if (!observedMapFrozen && liveScan.freshness === 'live' && nextKey !== liveScanKey) {
+      nextKey = liveScanKey
+      const sample = observedMapScanFromSelection(selectedLidar, selectedPose)
+      if (sample && sample.points.length > 0) {
+        nextScans = [...nextScans, sample].slice(-observedMapHistoryLimit)
+        nextSessionScans = [...nextSessionScans, sample]
+      }
     }
 
     if (contextChanged) {
-      goalContextRef.current = nextContext
-      setGoalRequest(null)
-      setGoalPreviewArmed(false)
+      setObservedMapContext(nextLidarContext)
     }
-  }, [
+    if (nextKey !== lastObservedMapKey) {
+      setLastObservedMapKey(nextKey)
+    }
+    if (nextScans !== observedMapScans) {
+      setObservedMapScans(nextScans)
+    }
+    if (nextSessionScans !== occupancySessionScans) {
+      setOccupancySessionScans(nextSessionScans)
+    }
+  }
+
+  if (replayKey && replaySelection === null) {
+    setReplayKey(null)
+  }
+
+  // Drop the goal when the pose it was picked against changes context or
+  // becomes unusable. Only re-evaluated when those pose inputs change.
+  const goalContext =
+    activePose.available && activePose.frame
+      ? `${sourceOverride}:${activePose.source}:${activePose.frame}:${replayMode}`
+      : null
+  const goalResetInputsKey = [
     activePose.available,
     activePose.frame,
     activePose.freshness,
     activePose.source,
     replayMode,
     sourceOverride,
-  ])
-
-  useEffect(() => {
-    if (goalPreviewArmed && goalPreview.status !== 'armed' && goalPreview.status !== 'ready') {
-      setGoalPreviewArmed(false)
+  ].join('|')
+  if (goalResetTracker?.inputsKey !== goalResetInputsKey) {
+    setGoalResetTracker({ inputsKey: goalResetInputsKey, context: goalContext })
+    const poseUsable = activePose.available && activePose.freshness !== 'invalid'
+    if (!poseUsable || (goalResetTracker?.context ?? null) !== goalContext) {
+      if (goalRequest !== null) {
+        setGoalRequest(null)
+      }
+      if (goalPreviewArmed) {
+        setGoalPreviewArmed(false)
+      }
     }
-  }, [goalPreview.status, goalPreviewArmed])
+  }
+
+  if (goalPreviewArmed && goalPreview.status !== 'armed' && goalPreview.status !== 'ready') {
+    setGoalPreviewArmed(false)
+  }
 
   const centerOnRobot = () => {
     if (!activePose.available || activePose.freshness === 'invalid') {
@@ -1685,14 +1591,14 @@ export function useSpatialViewModel(
 
   const clearLidarHistory = () => {
     setLidarHistory([])
-    lastLidarKeyRef.current = null
+    setLastLidarKey(null)
     setReplayKey(null)
   }
 
   const clearObservedMap = () => {
     setObservedMapScans([])
     setOccupancySessionScans([])
-    lastObservedMapKeyRef.current = null
+    setLastObservedMapKey(null)
   }
 
   const toggleObservedMapFrozen = () => {
@@ -1709,6 +1615,7 @@ export function useSpatialViewModel(
     }, OBSERVED_MAP_HISTORY_LIMIT_OPTIONS[0])
 
     setObservedMapHistoryLimitState(nextLimit)
+    setObservedMapScans((current) => current.slice(-nextLimit))
   }
 
   const toggleOccupancyLayer = () => {

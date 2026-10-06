@@ -177,6 +177,7 @@ function formatViewportRotation(rotationDeg: number) {
 
 function interpolatePose(
   poseTransition: SpatialPoseTransitionState,
+  startedAtMs: number,
   nowMs: number,
 ): PlanarScenePose | null {
   const latest = poseTransition.latest
@@ -196,7 +197,7 @@ function interpolatePose(
     return latest
   }
 
-  const progress = clamp((nowMs - poseTransition.receivedAtMs) / poseTransition.transitionMs, 0, 1)
+  const progress = clamp((nowMs - startedAtMs) / poseTransition.transitionMs, 0, 1)
 
   return {
     xMm: previous.xMm + (latest.xMm - previous.xMm) * progress,
@@ -620,6 +621,11 @@ export function PlanarViewerCanvas({
     }
   }, [requireCtrlForInteraction])
 
+  const poseTransitionStartRef = useRef<{
+    transition: SpatialPoseTransitionState | null
+    startedAtMs: number
+  }>({ transition: null, startedAtMs: 0 })
+
   const renderFrame = useEffectEvent((timestampMs: number) => {
     const canvas = canvasRef.current
     const shell = shellRef.current
@@ -646,7 +652,18 @@ export function PlanarViewerCanvas({
 
     context.setTransform(dpr, 0, 0, dpr, 0, 0)
 
-    const livePose = interpolatePose(sceneSnapshot.poseTransition, timestampMs)
+    if (poseTransitionStartRef.current.transition !== sceneSnapshot.poseTransition) {
+      poseTransitionStartRef.current = {
+        transition: sceneSnapshot.poseTransition,
+        startedAtMs: timestampMs,
+      }
+    }
+
+    const livePose = interpolatePose(
+      sceneSnapshot.poseTransition,
+      poseTransitionStartRef.current.startedAtMs,
+      timestampMs,
+    )
     const pose = buildReplayPose(sceneSnapshot.replaySelection) ?? livePose
 
     drawPlanarScene(context, {

@@ -842,13 +842,15 @@ export function useGuidedNavigation({
   const [status, setStatus] = useState<GuidedNavigationStatus>('idle')
   const [message, setMessage] = useState(commandTone('idle'))
   const [lastStopMessage, setLastStopMessage] = useState<string | null>(null)
+  const [syncedStatusInputs, setSyncedStatusInputs] = useState<readonly unknown[] | null>(null)
   const [telemetry, setTelemetry] = useState<GuidedNavigationTelemetry>(createIdleTelemetry)
   const activeStartedAtMsRef = useRef<number | null>(null)
   const pathProgressMmRef = useRef(0)
   const initialGoalDistanceMmRef = useRef<number | null>(null)
   const bestGoalDistanceMmRef = useRef<number | null>(null)
   const lastPoseMotionSignatureRef = useRef<string | null>(null)
-  const lastPoseMotionAtMsRef = useRef<number>(Date.now())
+  // Seeded by startGuidedNavigation before the control loop ever reads it.
+  const lastPoseMotionAtMsRef = useRef(0)
   const appliedCommandRef = useRef<GuidedCommandVector>(createZeroCommandVector())
   const lastRampAtMsRef = useRef<number | null>(null)
   const latestRef = useRef({
@@ -1039,32 +1041,35 @@ export function useGuidedNavigation({
     setMessage(initialRunningMessage)
   }, [canStart, clearGuidedCommand, setGuidedCommand, startBlockedReasons])
 
-  useEffect(() => {
-    if (active) {
-      return
-    }
+  // While stopped, re-derive the idle status whenever its inputs change. This is
+  // adjusted during render rather than in an effect; statuses set by the
+  // start/stop handlers stand until one of these inputs changes.
+  const statusInputs = [active, canStart, goalPreview.status, lastStopMessage, startBlockedReasons]
+  if (
+    syncedStatusInputs === null ||
+    statusInputs.some((input, index) => !Object.is(input, syncedStatusInputs[index]))
+  ) {
+    setSyncedStatusInputs(statusInputs)
 
-    const nextStatus =
-      canStart ? 'ready' : goalPreview.status === 'armed' ? 'unavailable' : 'idle'
-    setStatus(nextStatus)
-    if (nextStatus === 'ready') {
-      setMessage(
-        lastStopMessage
-          ? `${commandTone('ready')} Last stop: ${lastStopMessage}`
-          : commandTone('ready'),
-      )
-      return
+    if (!active) {
+      const nextStatus =
+        canStart ? 'ready' : goalPreview.status === 'armed' ? 'unavailable' : 'idle'
+      setStatus(nextStatus)
+      if (nextStatus === 'ready') {
+        setMessage(
+          lastStopMessage
+            ? `${commandTone('ready')} Last stop: ${lastStopMessage}`
+            : commandTone('ready'),
+        )
+      } else if (nextStatus === 'unavailable') {
+        setMessage(
+          `Guided Navigation V0 cannot start yet: ${startBlockedReasons.join(', ') || 'unknown gate'}.`,
+        )
+      } else {
+        setMessage(commandTone(nextStatus))
+      }
     }
-
-    if (nextStatus === 'unavailable') {
-      setMessage(
-        `Guided Navigation V0 cannot start yet: ${startBlockedReasons.join(', ') || 'unknown gate'}.`,
-      )
-      return
-    }
-
-    setMessage(commandTone(nextStatus))
-  }, [active, canStart, goalPreview.status, lastStopMessage, startBlockedReasons])
+  }
 
   useEffect(() => {
     if (!active) {
