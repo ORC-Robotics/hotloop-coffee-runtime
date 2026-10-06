@@ -941,7 +941,9 @@ export function HomeWorkspaceCanvas({
                   title={editMode ? 'Drag to move' : undefined}
                 >
                   {editMode ? <GripIcon className="-ml-1 shrink-0 text-[var(--text-faint)]" /> : null}
-                  <span className="hl-panel-title text-[12px]">{widget.title}</span>
+                  <span className="hl-panel-title text-[12px]" title={widget.title}>
+                    {widget.title}
+                  </span>
                   {isHomeWorkspaceTopicWidget(widget) && widget.topicKey ? (
                     <span className="hl-panel-meta hidden text-[10.5px] @[300px]:inline" title={widget.topicKey}>
                       {widget.topicKey}
@@ -971,7 +973,7 @@ export function HomeWorkspaceCanvas({
                   </div>
                 </header>
 
-                <div className={cn('relative min-h-0 flex-1 overflow-hidden', fullBleed ? '' : 'p-2.5')}>
+                <div className={cn('hl-body', fullBleed ? 'overflow-hidden' : 'p-2.5')}>
                   <HomeWorkspaceWidgetRenderer
                     widget={widget}
                     topic={topic}

@@ -7,6 +7,52 @@
   --font-mono: 'Geist Mono Variable', ui-monospace, 'Cascadia Mono', Consolas, monospace;
 }
 
+/*
+ * Panel-body container queries. Every panel body is a `hl-body` size container,
+ * so a panel sheds secondary detail as *it* shrinks (not the window):
+ * `h-lt-180:hidden` hides an element when the body is under 180px tall.
+ */
+@custom-variant h-lt-90 {
+  @container hl-body (max-height: 89.98px) {
+    @slot;
+  }
+}
+@custom-variant h-lt-120 {
+  @container hl-body (max-height: 119.98px) {
+    @slot;
+  }
+}
+@custom-variant h-lt-150 {
+  @container hl-body (max-height: 149.98px) {
+    @slot;
+  }
+}
+@custom-variant h-lt-180 {
+  @container hl-body (max-height: 179.98px) {
+    @slot;
+  }
+}
+@custom-variant h-lt-220 {
+  @container hl-body (max-height: 219.98px) {
+    @slot;
+  }
+}
+@custom-variant w-lt-200 {
+  @container hl-body (max-width: 199.98px) {
+    @slot;
+  }
+}
+@custom-variant w-lt-260 {
+  @container hl-body (max-width: 259.98px) {
+    @slot;
+  }
+}
+@custom-variant w-lt-340 {
+  @container hl-body (max-width: 339.98px) {
+    @slot;
+  }
+}
+
 @layer base {
   :root {
     color-scheme: dark;
@@ -150,6 +196,22 @@
     font-family: var(--font-mono);
     font-size: 11px;
     color: var(--text-faint);
+  }
+
+  /* Panel body: size container + scroll as a last resort (never silent clipping). */
+  .hl-body {
+    position: relative;
+    min-height: 0;
+    flex: 1 1 0%;
+    container: hl-body / size;
+    overflow: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+
+  .hl-body:hover {
+    scrollbar-color: var(--border-strong) transparent;
   }
 
   .hl-well {

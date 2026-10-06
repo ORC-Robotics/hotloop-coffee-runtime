@@ -8,6 +8,7 @@ declare global {
       restartBridge?: () => Promise<{
         ok: boolean
         bridgeBaseUrl: string
+        error?: string | null
       }>
       platform: string
       versions: {

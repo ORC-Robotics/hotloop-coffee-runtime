@@ -1,7 +1,7 @@
 import { clamp } from '../../lib/format'
 import { toneColor } from '../../lib/robotThresholds'
 import type { HeadingData, UiTone } from '../../types/telemetry'
-import { Compass, FillBar, Readout, StatRow } from '../viz/viz'
+import { Compass, FillBar, StatRow } from '../viz/viz'
 import { DashboardCard } from './DashboardCard'
 import { StatusBadge } from './StatusBadge'
 
@@ -35,15 +35,21 @@ export function HeadingPanelBody({
   const errorTone = angularTone(data.angularErrorDeg)
 
   return (
-    <div className="flex h-full min-h-0 items-center gap-4 [container-type:inline-size]">
+    <div className="flex h-full min-h-0 items-center-safe gap-4 w-lt-340:gap-3">
       <Compass
         yawDeg={data.yawDeg}
         targetDeg={data.targetYawDeg}
-        className="h-full max-h-[150px] min-h-[72px] w-auto shrink-0"
+        className="h-full max-h-[150px] w-auto shrink-0 w-lt-200:hidden w-lt-260:max-w-[40%]"
       />
-      <div className="grid min-w-0 flex-1 gap-2.5">
-        <Readout label="Yaw" value={data.yawDeg.toFixed(1)} unit="°" size="lg" />
-        <div>
+      <div className="grid min-w-0 flex-1 gap-2.5 h-lt-120:gap-1.5">
+        <div className="min-w-0">
+          <div className="hl-label h-lt-90:hidden">Yaw</div>
+          <div className="hl-value mt-0.5 font-medium whitespace-nowrap leading-[1.05] text-[clamp(16px,min(11cqw,26cqh),36px)]" title="Yaw">
+            {data.yawDeg.toFixed(1)}
+            <span className="hl-unit">°</span>
+          </div>
+        </div>
+        <div className="h-lt-90:hidden">
           <div className="mb-1 flex items-baseline justify-between gap-2">
             <span className="hl-label">Error</span>
             <span className="hl-value text-[12.5px]" style={{ color: errorTone === 'good' ? undefined : toneColor(errorTone) }}>
@@ -53,7 +59,7 @@ export function HeadingPanelBody({
           </div>
           <FillBar ratio={clamp(Math.abs(data.angularErrorDeg) / 30, 0.02, 1)} color={toneColor(errorTone)} />
         </div>
-        <div>
+        <div className="h-lt-150:hidden">
           <StatRow
             label={
               <span className="inline-flex items-center gap-1.5">

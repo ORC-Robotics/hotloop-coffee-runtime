@@ -40,6 +40,15 @@ Simulation mode (`orion.telemetry-mode.v1 = offline` in localStorage, or the Liv
 - Interface size setting → `data-ui-scale` on `<html>` → `--ui-zoom` CSS zoom on the app root.
 - Battery thresholds live in `src/lib/robotThresholds.ts` (11.8 V warn / 11.0 V critical) — don't duplicate.
 
+## Bridge / robot link notes (Oct 6 2026)
+- Robot is at `raspberrypi.local` (DHCP — IP changes; never save a raw IP as manual host). Saved in `~/.hotloop/bridge_connection.json`.
+- Dev mode runs `py -3 telemetry_bridge.py`; Electron now auto-installs `requirements.txt` if `networktables` is missing and returns the bridge error through `restartBridge()`.
+- `nt_client._monitor_loop` must not restart the NT client within `CLIENT_RESTART_GRACE_S` of starting it (restarting every 1 s killed `.local` connections mid-handshake).
+
+## Panel responsiveness (in progress)
+- Panel body = `.hl-body` size container (`index.css`), scrolls as last resort. Custom variants `h-lt-90/120/150/180/220` and `w-lt-200/260/340` hide/reflow detail by *panel* size. Applied to Pose, Battery, Heading, Sensors, Commands, Alerts, Raspberry, Plot.
+- TODO: map overlay chips collide on narrow map panels (`PlanarViewerCanvas.tsx` ~L848/905 — make them wrap/hide by width); ControlDock fixed ~290px could collapse on narrow windows; Sensors chips at 1 column still need scroll at 4x4; gauge is tiny at 2x2. Test harness used: playwright-core + installed Chrome, stress layout injected into `orion.home-workspace.v3`.
+
 ## Status / next steps
 - PR from `redesign/operator-ui` → `main` (title: "Redesign operator console around fast control and live data").
 - Not yet verified: Electron build, and the real robot (teleop enable/drive/disable/E-Stop, auto select + run — routine is applied on selection and again on Run, Map/Drive live odometry + LiDAR).

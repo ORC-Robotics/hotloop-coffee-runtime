@@ -83,9 +83,9 @@ export function StatRow({ label, value, tone }: { label: ReactNode; value: React
   const colored = tone === 'warning' || tone === 'critical'
   return (
     <div className="flex min-w-0 items-baseline justify-between gap-3 py-[3px]">
-      <span className="hl-label shrink-0">{label}</span>
+      <span className="hl-label min-w-[3ch] truncate">{label}</span>
       <span
-        className="hl-value min-w-0 truncate text-right text-[12.5px]"
+        className="hl-value max-w-[78%] min-w-0 shrink-0 truncate text-right text-[12.5px]"
         style={colored ? { color: toneColor(tone) } : undefined}
         title={typeof value === 'string' ? value : undefined}
       >
@@ -127,7 +127,7 @@ export function BoolIndicator({
 }) {
   const tone: UiTone = value === null ? 'neutral' : value ? 'good' : offTone
   return (
-    <div className="hl-well flex min-w-0 items-center gap-2 px-2.5 py-2">
+    <div className="hl-well flex min-w-0 items-center gap-2 px-2.5 py-2 h-lt-120:py-1.5" title={typeof label === 'string' ? label : undefined}>
       <StatusDot tone={tone} />
       <span className="truncate text-[12.5px] text-[var(--text-secondary)]">{label}</span>
       <span className="ml-auto shrink-0 text-[11.5px] font-medium" style={{ color: value === null ? 'var(--text-faint)' : toneColor(tone) }}>
@@ -383,7 +383,7 @@ export function EmptyHint({ title, children, action }: { title: string; children
   return (
     <div className="flex h-full min-h-0 flex-col items-center justify-center gap-1.5 px-4 text-center">
       <div className="text-[12.5px] font-medium text-[var(--text-secondary)]">{title}</div>
-      {children ? <div className="max-w-[36ch] text-[11.5px] leading-5 text-[var(--text-faint)]">{children}</div> : null}
+      {children ? <div className="max-w-[36ch] text-[11.5px] leading-5 text-[var(--text-faint)] h-lt-120:hidden">{children}</div> : null}
       {action ? <div className="mt-1.5">{action}</div> : null}
     </div>
   )

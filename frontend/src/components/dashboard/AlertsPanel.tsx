@@ -39,22 +39,23 @@ export function AlertsPanelBody({ alerts }: AlertsPanelProps) {
   }
 
   return (
-    <ul className="grid h-full min-h-0 content-start gap-1.5 overflow-auto">
+    <ul className="grid min-h-0 content-start gap-1.5 h-lt-120:gap-1">
       {alerts.map((alert) => {
         const color = toneColor(severityTone(alert.severity))
         return (
           <li
             key={alert.id}
-            className="hl-well grid grid-cols-[3px_minmax(0,1fr)] gap-x-2.5 overflow-hidden py-2 pr-2.5"
+            className="hl-well grid grid-cols-[3px_minmax(0,1fr)] gap-x-2.5 overflow-hidden py-2 pr-2.5 h-lt-120:py-1.5"
+            title={`${alert.title} — ${alert.message}`}
           >
             <span className="row-span-2 -my-2 rounded-r-sm" style={{ background: color }} />
             <div className="flex items-baseline justify-between gap-2">
               <span className="truncate text-[12.5px] font-medium text-[var(--text)]">{alert.title}</span>
-              <span className="shrink-0 text-[10.5px] font-medium uppercase tracking-[0.06em]" style={{ color }}>
+              <span className="shrink-0 text-[10.5px] font-medium uppercase tracking-[0.06em] w-lt-260:hidden" style={{ color }}>
                 {alert.severity}
               </span>
             </div>
-            <p className="text-[11.5px] leading-[1.45] text-[var(--text-muted)]">{alert.message}</p>
+            <p className="line-clamp-2 text-[11.5px] leading-[1.45] text-[var(--text-muted)] h-lt-120:line-clamp-1">{alert.message}</p>
           </li>
         )
       })}

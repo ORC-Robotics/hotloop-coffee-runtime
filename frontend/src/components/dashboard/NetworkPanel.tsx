@@ -45,7 +45,7 @@ export function NetworkPanel({ data, tone, bridgeStatus, controlMode }: NetworkP
 
         const restart = await window.orionDesktop.restartBridge()
         if (!restart.ok) {
-          setActionMessage('Hotloop retried the local bridge backend, but it is still starting or unavailable.')
+          setActionMessage(restart.error ?? 'Hotloop retried the local bridge backend, but it is still starting or unavailable.')
           return
         }
 

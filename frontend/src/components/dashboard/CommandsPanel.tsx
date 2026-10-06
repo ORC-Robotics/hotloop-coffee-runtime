@@ -24,18 +24,18 @@ export function CommandsPanel({ data, derived }: CommandsPanelProps) {
 
 export function CommandsPanelBody({ data, derived }: CommandsPanelProps) {
   return (
-    <div className="flex h-full min-h-0 flex-col justify-between gap-3">
-      <div className="grid gap-3">
+    <div className="flex h-full min-h-0 flex-col justify-between gap-3 h-lt-150:justify-center-safe">
+      <div className="grid gap-3 h-lt-180:gap-2 h-lt-120:gap-1.5 h-lt-90:gap-1">
         {commandMeta.map((item) => {
           const value = data[item.key]
           return (
             <div key={item.key}>
-              <div className="mb-1.5 flex items-baseline justify-between gap-2">
+              <div className="mb-1.5 flex items-baseline justify-between gap-2 h-lt-120:mb-1 h-lt-90:mb-0.5 h-lt-90:leading-4">
                 <span className="hl-label">{item.label}</span>
                 <span className="hl-value text-[13px]">{formatCommand(value)}</span>
               </div>
               <CenterBar value={value} color={item.color} />
-              <div className="mt-1 flex justify-between text-[10.5px] text-[var(--text-faint)]">
+              <div className="mt-1 flex justify-between text-[10.5px] text-[var(--text-faint)] h-lt-220:hidden">
                 <span>{item.neg}</span>
                 <span>{item.pos}</span>
               </div>
@@ -43,7 +43,7 @@ export function CommandsPanelBody({ data, derived }: CommandsPanelProps) {
           )
         })}
       </div>
-      <p className="truncate text-[11.5px] text-[var(--text-muted)]" title={derived.commandNarrative}>
+      <p className="truncate text-[11.5px] text-[var(--text-muted)] h-lt-180:hidden" title={derived.commandNarrative}>
         {derived.commandNarrative}
       </p>
     </div>

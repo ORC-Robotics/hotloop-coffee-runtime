@@ -28,7 +28,7 @@ export function SystemsHealthPanel({ data, overallTone }: SystemsHealthPanelProp
 
 export function SystemsHealthPanelBody({ data }: Pick<SystemsHealthPanelProps, 'data'>) {
   return (
-    <div className="grid content-start gap-1.5 [grid-template-columns:repeat(auto-fill,minmax(140px,1fr))]">
+    <div className="grid content-start gap-1.5 [grid-template-columns:repeat(auto-fill,minmax(min(120px,100%),1fr))] h-lt-120:gap-1">
       {healthItems.map((item) => (
         <BoolIndicator
           key={item.key}

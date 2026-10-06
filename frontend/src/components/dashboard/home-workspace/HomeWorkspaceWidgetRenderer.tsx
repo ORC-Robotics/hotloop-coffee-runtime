@@ -208,11 +208,11 @@ function PlotView({ value, widget, history }: NumericViewProps) {
   return (
     <div className="flex h-full min-h-0 flex-col gap-1.5">
       <div className="flex items-baseline gap-2">
-        <span className="hl-value text-[18px] font-medium" style={tone === 'warning' || tone === 'critical' ? { color: toneColor(tone) } : undefined}>
+        <span className="hl-value text-[clamp(13px,min(9cqw,22cqh),18px)] font-medium whitespace-nowrap" style={tone === 'warning' || tone === 'critical' ? { color: toneColor(tone) } : undefined}>
           {formatValue(value, widget.config.decimals)}
           {widget.config.units ? <span className="hl-unit">{widget.config.units}</span> : null}
         </span>
-        <span className="ml-auto text-[10.5px] text-[var(--text-faint)]">{history.length} samples</span>
+        <span className="ml-auto text-[10.5px] whitespace-nowrap text-[var(--text-faint)] w-lt-260:hidden">{history.length} samples</span>
       </div>
       <div className="min-h-0 flex-1">
         <TimePlot
@@ -416,21 +416,21 @@ function PosePreset() {
   ]
 
   return (
-    <div className="flex h-full min-h-0 flex-col justify-between gap-2 [container-type:inline-size]">
-      <div className="grid grid-cols-3 gap-3">
+    <div className="flex h-full min-h-0 flex-col justify-between gap-2">
+      <div className="grid grid-cols-3 gap-[min(4cqw,12px)] w-lt-200:grid-cols-1 w-lt-200:gap-0.5">
         {values.map((item) => (
-          <div key={item.label} className="min-w-0">
-            <div className="hl-label">{item.label}</div>
-            <div className="hl-value truncate font-medium leading-tight" style={{ fontSize: 'clamp(15px, 7.4cqw, 30px)' }}>
+          <div key={item.label} className="min-w-0 w-lt-200:flex w-lt-200:items-baseline w-lt-200:justify-between w-lt-200:gap-2" title={`${item.label} ${item.value} ${item.unit}`}>
+            <div className="hl-label h-lt-90:text-[10.5px]">{item.label}</div>
+            <div className="hl-value font-medium whitespace-nowrap leading-tight text-[clamp(11px,min(6.4cqw,30cqh),34px)] w-lt-200:text-[clamp(11px,9cqw,16px)]">
               {item.value}
               <span className="hl-unit">{item.unit}</span>
             </div>
           </div>
         ))}
       </div>
-      <div className="flex min-w-0 items-center gap-2 text-[11px] text-[var(--text-faint)]">
+      <div className="flex min-w-0 items-center gap-2 text-[11px] text-[var(--text-faint)] h-lt-120:hidden">
         <StatusDot tone={freshnessTone} />
-        <span className="truncate">
+        <span className="truncate" title={pose.available ? `${pose.source} · ${pose.freshness} · ${pose.frame}` : undefined}>
           {pose.available ? `${pose.source} · ${pose.freshness} · ${pose.frame}` : 'No pose source'}
         </span>
         <span className="hl-value ml-auto shrink-0">#{pose.sequence}</span>
@@ -460,11 +460,11 @@ function RaspberryMonitorPreset({ topicMap }: { topicMap: Map<string, TelemetryT
   }
 
   return (
-    <div className="grid h-full content-center gap-3">
+    <div className="grid h-full content-center-safe gap-3 h-lt-120:gap-1.5">
       {metrics.map((metric) => {
         const tone = raspberryTone(metric.value, metric.warn, metric.crit)
         return (
-          <div key={metric.label} className="grid grid-cols-[40px_minmax(0,1fr)_64px] items-center gap-2.5">
+          <div key={metric.label} className="grid grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-2.5 w-lt-200:gap-1.5">
             <span className="hl-label">{metric.label}</span>
             <FillBar ratio={(metric.value ?? 0) / metric.max} color={toneColor(tone === 'neutral' ? 'good' : tone)} />
             <span className="hl-value text-right text-[13px]" style={tone === 'warning' || tone === 'critical' ? { color: toneColor(tone) } : undefined}>
@@ -590,7 +590,7 @@ export function HomeWorkspaceWidgetRenderer({
   if (!topic) {
     return (
       <EmptyHint title="Topic not published">
-        <span className="font-mono">{widget.topicKey}</span>
+        <span className="font-mono break-all">{widget.topicKey}</span>
       </EmptyHint>
     )
   }

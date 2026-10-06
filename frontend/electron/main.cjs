@@ -58,6 +58,7 @@ let bridgeProcess = null
 let bridgeOwnedByApp = false
 let appIsQuitting = false
 let bridgeStartupPromise = null
+let lastBridgeError = null
 
 function getBridgeBaseUrl() {
   return `http://${bridgeHost}:${bridgePort}`
@@ -196,6 +197,46 @@ async function resolvePythonCommand() {
   }
 
   return null
+}
+
+function runPython(pythonCommand, args) {
+  return new Promise((resolve) => {
+    let output = ''
+    const child = spawn(pythonCommand.command, [...pythonCommand.args, ...args], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+    })
+
+    child.stdout?.on('data', (chunk) => {
+      output += chunk.toString()
+    })
+    child.stderr?.on('data', (chunk) => {
+      output += chunk.toString()
+    })
+    child.once('error', (error) => resolve({ ok: false, output: error.message }))
+    child.once('exit', (code) => resolve({ ok: code === 0, output }))
+  })
+}
+
+// Running from source needs pynetworktables in the selected interpreter; the
+// bundled bridge executable ships it. Install requirements.txt once if missing.
+async function ensurePythonBridgeDependencies(pythonCommand) {
+  const probe = await runPython(pythonCommand, ['-c', 'import networktables'])
+  if (probe.ok) {
+    return true
+  }
+
+  const requirementsPath = path.resolve(__dirname, '..', '..', 'requirements.txt')
+  logRuntime(`python bridge dependencies missing; installing ${requirementsPath}`)
+  const install = await runPython(pythonCommand, ['-m', 'pip', 'install', '-r', requirementsPath])
+  logRuntime(`[bridge][pip] ${install.output.trim().split('\n').slice(-3).join(' | ')}`)
+
+  if (!install.ok) {
+    lastBridgeError = `Python is missing pynetworktables and pip install failed. Run: pip install -r requirements.txt`
+    return false
+  }
+
+  return true
 }
 
 async function canLaunchLocalBridge() {
@@ -369,6 +410,11 @@ async function startBridgeIfNeededInternal() {
         : 'Hotloop precisa de Python 3 instalado ou de um bridge standalone compilado para iniciar o telemetry bridge local.'
 
       logRuntime(`bridge startup skipped: ${message}`)
+      lastBridgeError = message
+      return false
+    }
+
+    if (!(await ensurePythonBridgeDependencies(pythonCommand))) {
       return false
     }
 
@@ -390,6 +436,7 @@ async function startBridgeIfNeededInternal() {
   let stderrBuffer = ''
 
   bridgeOwnedByApp = true
+  lastBridgeError = null
   logRuntime(`starting bridge: ${launchCommand} ${launchArgs.join(' ')}`)
   bridgeProcess = spawn(launchCommand, launchArgs, {
     cwd: launchCwd,
@@ -435,6 +482,7 @@ async function startBridgeIfNeededInternal() {
       `O telemetry bridge foi encerrado com codigo ${code ?? 'desconhecido'}${signal ? ` (${signal})` : ''}.`
 
     logRuntime(`telemetry bridge interrupted: ${summary}`)
+    lastBridgeError = summary.split('\n').filter(Boolean).pop() ?? summary
   })
 
   const bridgeReady = await waitForBridgeHealth(BRIDGE_STARTUP_TIMEOUT_MS)
@@ -488,6 +536,7 @@ ipcMain.handle('orion:restart-bridge', async () => {
   return {
     ok: ready,
     bridgeBaseUrl: getBridgeBaseUrl(),
+    error: ready ? null : lastBridgeError,
   }
 })
 

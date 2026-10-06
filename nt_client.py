@@ -13,6 +13,9 @@ from networktables import NetworkTablesInstance
 
 DEFAULT_TEAM = 1234
 NT_PORT = 1735
+# NetworkTables retries on its own; only tear the client down after it has had
+# time to resolve the host and finish the initial sync.
+CLIENT_RESTART_GRACE_S = 6.0
 BRIDGE_CONFIG_PATH = Path.home() / ".hotloop" / "bridge_connection.json"
 
 
@@ -77,17 +80,24 @@ def expand_host_aliases(host: str, port: int = NT_PORT) -> list[str]:
     if not normalized_host:
         return []
 
-    aliases = [normalized_host]
+    # Resolved IPv4 first: handing NetworkTables an address avoids a fresh mDNS
+    # lookup (~1 s for .local names) on every connection attempt.
+    ipv4_aliases: list[str] = []
+    other_aliases: list[str] = []
 
     try:
         for result in socket.getaddrinfo(normalized_host, port, type=socket.SOCK_STREAM):
             resolved_host = str(result[4][0]).strip()
-            if resolved_host:
-                aliases.append(resolved_host)
+            if not resolved_host:
+                continue
+            if result[0] == socket.AF_INET:
+                ipv4_aliases.append(resolved_host)
+            else:
+                other_aliases.append(resolved_host)
     except OSError:
         pass
 
-    return dedupe_hosts(aliases)
+    return dedupe_hosts([*ipv4_aliases, normalized_host, *other_aliases])
 
 
 def candidate_hosts(team: int, manual_host: str | None = None) -> list[str]:
@@ -105,6 +115,7 @@ def candidate_hosts(team: int, manual_host: str | None = None) -> list[str]:
             f"{prefix}.2",
             f"{prefix}.11",
             "vmxpi.local",
+            "raspberrypi.local",
             "localhost",
             "127.0.0.1",
         ]
@@ -146,6 +157,7 @@ class NTClient:
         else:
             self.connection_preference = "team-auto"
         self._lock = threading.Lock()
+        self._client_started_at = 0.0
 
         with self._lock:
             self._start_client_locked()
@@ -172,6 +184,7 @@ class NTClient:
 
     def _start_client_locked(self) -> None:
         self._stop_client_locked()
+        self._client_started_at = time.monotonic()
 
         if self.connection_preference == "manual-host" and self.manual_host:
             start_client = getattr(self.inst, "startClient", None)
@@ -250,7 +263,8 @@ class NTClient:
         while True:
             try:
                 connected = self.is_connected()
-                if not connected:
+                in_grace = time.monotonic() - self._client_started_at < CLIENT_RESTART_GRACE_S
+                if not connected and not in_grace:
                     with self._lock:
                         if self.connection_preference == "manual-host" and self.manual_host:
                             self.connection_target = self.manual_host
@@ -260,18 +274,25 @@ class NTClient:
                             if host and host != self.connection_target:
                                 self.connection_target = host
                                 self._start_client_locked()
-                else:
-                    if self.connection_preference == "manual-host" and self.manual_host:
-                        host_candidates = expand_host_aliases(self.manual_host)
-                        self.connected_host = first_reachable_host(host_candidates) or self.manual_host
-                    else:
-                        reachable = first_reachable_host(candidate_hosts(self.team))
-                        if reachable:
-                            self.connected_host = reachable
+                elif connected:
+                    remote_ip = self._active_remote_ip()
+                    if remote_ip:
+                        self.connected_host = remote_ip
             except Exception:
                 pass
 
             time.sleep(1.0)
+
+    def _active_remote_ip(self) -> str | None:
+        try:
+            connections = self.inst.getConnections()
+        except Exception:
+            return None
+        for connection in connections or []:
+            remote_ip = str(getattr(connection, "remote_ip", "") or "").strip()
+            if remote_ip:
+                return remote_ip
+        return None
 
     def is_connected(self) -> bool:
         is_connected = getattr(self.inst, "isConnected", None)
