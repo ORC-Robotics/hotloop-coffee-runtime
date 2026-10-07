@@ -1,8 +1,8 @@
 {
-  "name": "hotloop",
+  "name": "quente",
   "private": true,
   "version": "0.3.6",
-  "description": "Hotloop desktop operator console for Coffee Runtime robotics operations.",
+  "description": "quente desktop operator console for ORC-Robotics robots.",
   "author": {
     "name": "ORC-Robotics",
     "email": "orcrobotics@users.noreply.github.com",
@@ -29,8 +29,8 @@
   },
   "build": {
     "appId": "com.orcrobotics.orionconsole",
-    "productName": "Hotloop",
-    "executableName": "Hotloop",
+    "productName": "quente",
+    "executableName": "quente",
     "artifactName": "${productName}-${version}.${ext}",
     "directories": {
       "output": "release"

@@ -39,7 +39,9 @@ if (
 
 const { app, BrowserWindow, dialog, ipcMain, shell } = electronModule
 
-const APP_NAME = 'Hotloop'
+const APP_NAME = 'quente'
+// userData stays in the pre-rename "Hotloop" folder so saved layouts and settings survive the rename.
+const USER_DATA_DIR_NAME = 'Hotloop'
 const APP_USER_MODEL_ID = 'com.orcrobotics.orionconsole'
 
 const DEFAULT_BRIDGE_HOST = process.env.ORION_BRIDGE_HOST ?? '127.0.0.1'
@@ -107,6 +109,7 @@ function logRuntime(message) {
 }
 
 app.setName(APP_NAME)
+app.setPath('userData', path.join(app.getPath('appData'), USER_DATA_DIR_NAME))
 if (process.platform === 'win32') {
   app.setAppUserModelId(APP_USER_MODEL_ID)
 }
@@ -407,7 +410,7 @@ async function startBridgeIfNeededInternal() {
     if (!pythonCommand) {
       const message = app.isPackaged
         ? 'O binario do telemetry bridge nao foi encontrado dentro do pacote desktop.'
-        : 'Hotloop precisa de Python 3 instalado ou de um bridge standalone compilado para iniciar o telemetry bridge local.'
+        : 'quente precisa de Python 3 instalado ou de um bridge standalone compilado para iniciar o telemetry bridge local.'
 
       logRuntime(`bridge startup skipped: ${message}`)
       lastBridgeError = message
@@ -492,7 +495,7 @@ async function startBridgeIfNeededInternal() {
     startupErrorShown = true
     logRuntime(
       `bridge not ready yet: ${
-        stderrBuffer.trim() || 'Hotloop interface will stay available while the backend retries.'
+        stderrBuffer.trim() || 'quente interface will stay available while the backend retries.'
       }`,
     )
   }
@@ -632,7 +635,7 @@ app.whenReady().then(async () => {
   } catch (error) {
     const message = error instanceof Error ? error.stack ?? error.message : String(error)
     logRuntime(`whenReady bootstrap failed: ${message}`)
-    dialog.showErrorBox('Falha ao iniciar Hotloop', message)
+    dialog.showErrorBox('Falha ao iniciar quente', message)
     app.quit()
   }
 })

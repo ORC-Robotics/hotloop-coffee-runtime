@@ -1,8 +1,10 @@
-# Hotloop — Coffee Runtime
+# quente — see runtime
 
 Operator console for ORC-Robotics robots: Electron + React 19 + Vite + Tailwind v4 desktop app (`frontend/`) talking to a Python NetworkTables→HTTP bridge (`telemetry_bridge.py`, `nt_client.py`).
 
 The user (team ORC-Robotics) writes in Portuguese — reply in Portuguese. UI copy stays in English.
+
+Name: the app is **quente** (lowercase; formerly Hotloop — "quente see runtime" reads as "can't see runtime"). Hotloop-era internal ids are kept on purpose so installs keep their data: Electron userData folder `Hotloop` (`USER_DATA_DIR_NAME` in `electron/main.cjs`), `~/.hotloop/`, `hotloop.active-page.v1`, `hl-*` classes, repo name.
 
 ## Primary use case (drives every UI decision)
 Fast robot control at the field: enable teleop and drive (WASD/QE or gamepad), or pick an auto routine and run it, while watching live sensor data and odometry. The operator wants a modern ROS2/Foxglove/Shuffleboard feel: readable data, meaningful colour, flexible (not locked) panels, nothing that looks generic or decorative.

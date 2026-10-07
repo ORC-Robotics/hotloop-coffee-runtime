@@ -1,4 +1,4 @@
-name: Release Hotloop Desktop
+name: Release quente Desktop
 
 on:
   push:
@@ -21,15 +21,15 @@ jobs:
           - os: windows-latest
             platform: windows
             python-version: "3.13"
-            artifact-name: Hotloop-windows-portable
-            asset-glob: frontend/release/Hotloop-*.exe
+            artifact-name: quente-windows-portable
+            asset-glob: frontend/release/quente-*.exe
           - os: ubuntu-22.04
             platform: linux
             python-version: "3.12"
-            artifact-name: Hotloop-linux
+            artifact-name: quente-linux
             asset-glob: |
-              frontend/release/Hotloop-*.AppImage
-              frontend/release/Hotloop-*.deb
+              frontend/release/quente-*.AppImage
+              frontend/release/quente-*.deb
 
     runs-on: ${{ matrix.os }}
 

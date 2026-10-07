@@ -51,7 +51,7 @@ export const SPATIAL_POSE_OVERRIDE_OPTIONS: Array<{
   {
     id: 'simulation',
     label: 'Simulation',
-    description: 'Offline planar pose generated inside Hotloop for replay-friendly testing.',
+    description: 'Offline planar pose generated inside quente for replay-friendly testing.',
   },
 ]
 

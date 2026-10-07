@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/hotloop-banner.png" alt="Hotloop - Coffee Runtime" width="980" />
+  <img src="docs/quente-banner.png" alt="quente — see runtime" width="980" />
 </p>
 
 <p align="center">
@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  Hotloop is the Coffee Runtime operator console for live telemetry, configurable workspaces, remote control tooling, and safe offline UI simulation.
+  quente is the ORC-Robotics operator console for live telemetry, configurable workspaces, remote control tooling, and safe offline UI simulation.
 </p>
 
 ## Highlights
@@ -85,7 +85,7 @@ npm run build:desktop
 
 ## Release Flow
 
-Hotloop releases are driven by `.github/workflows/release-desktop.yml`.
+quente releases are driven by `.github/workflows/release-desktop.yml`.
 
 1. Update `frontend/package.json`.
 2. Commit the release changes.
@@ -97,7 +97,7 @@ Example:
 
 ```powershell
 git add .
-git commit -m "release: prepare Hotloop v0.x.0"
+git commit -m "release: prepare quente v0.x.0"
 git push
 git tag v0.x.0
 git push origin v0.x.0
@@ -119,7 +119,7 @@ Robot / SmartDashboard / NetworkTables
      +----------+----------+
                 |
                 v
-         Hotloop desktop app
+          quente desktop app
 ```
 
 ## Telemetry Contracts
@@ -159,5 +159,6 @@ If Electron does not open in development mode:
 
 ## Branding Note
 
-The application branding, executable name, and release artifacts now use `Hotloop`.
+The application branding, executable name, and release artifacts now use `quente` (formerly Hotloop).
+Internal ids from the Hotloop era stay as they are so existing installs keep their data: the Electron user data folder (`Hotloop`), `~/.hotloop/bridge_connection.json`, the `hotloop.active-page.v1` storage key, the `hl-*` CSS classes and the GitHub repository name.
 The bridge binary intentionally keeps the `orion-telemetry-bridge` name so the desktop integration path stays stable.

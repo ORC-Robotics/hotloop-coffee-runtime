@@ -29,7 +29,7 @@ import type {
 const STATUS_POLL_MS = 320
 const PREVIEW_POLL_MS = 80
 const GUIDED_COMMAND_TTL_MS = 260
-const DRIVER_SOURCE = 'Hotloop Desktop'
+const DRIVER_SOURCE = 'quente Desktop'
 const INPUT_DEADBAND = 0.08
 const GUIDED_INPUT_SOURCE = 'guided-nav'
 
@@ -121,7 +121,7 @@ function createFallbackRemoteDriver(): RemoteDriverStatus {
     mode: 'disabled',
     heartbeatFresh: false,
     heartbeatAgeSec: null,
-    source: 'Hotloop',
+    source: 'quente',
     inputSource: 'idle',
     lastAction: 'none',
     driveX: 0,
@@ -564,7 +564,7 @@ function useRemoteDriverController() {
       setWindowActive(false)
       void flushZeroPacket({
         tone: 'warning',
-        message: 'Teleop heartbeat paused because the Hotloop window lost focus.',
+        message: 'Teleop heartbeat paused because the quente window lost focus.',
       })
     }
 
@@ -723,7 +723,7 @@ function useRemoteDriverController() {
             }
           : {
               tone: 'warning',
-              message: 'Teleop heartbeat paused because the Hotloop window lost focus.',
+              message: 'Teleop heartbeat paused because the quente window lost focus.',
             },
       )
       return

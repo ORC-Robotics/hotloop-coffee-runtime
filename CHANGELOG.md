@@ -5,6 +5,7 @@ Todas as mudancas relevantes deste projeto sao registradas aqui.
 ## [Unreleased]
 
 ### Changed
+- renamed the app from Hotloop to quente ("see runtime"): window title, status bar (new steaming-cup mark), executable and release artifacts (`quente-*.exe`, `.AppImage`, `.deb`) and the README banner; saved layouts and bridge settings carry over because the user data folder and storage keys keep their old names
 - rebuilt the operator UI around a single left navigation (Drive, Map, Cameras, Topics, Health) and one status bar with robot state, link, battery, alerts, Live/Sim and an always-visible E-Stop
 - new Drive page: control dock (Teleop/Auto, auto routine list, Enable/Disable, live driver input, gyro assist) beside the panel layout, which now ships with a default map + pose + heading + battery + sensors + alerts layout
 - redesigned every panel: flat frames with the topic path in the header, values that scale with panel size instead of switching layouts, real plots with axes and threshold lines, flat indicators and toggle buttons

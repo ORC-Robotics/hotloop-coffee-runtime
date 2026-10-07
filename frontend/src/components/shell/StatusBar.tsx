@@ -12,18 +12,24 @@ const driverModeMeta: Record<RemoteDriverMode, { label: string; tone: UiTone }> 
   autonomous: { label: 'Autonomous', tone: 'warning' },
 }
 
-function HotloopMark() {
+function QuenteMark() {
   return (
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
       <path
-        d="M12 3.5a8.5 8.5 0 1 1-7.36 4.25"
+        d="M8.7 2.8c-.9 1-.9 2 0 3s.9 2 0 3M12.3 2.8c-.9 1-.9 2 0 3s.9 2 0 3"
         fill="none"
         stroke="var(--primary)"
-        strokeWidth="2.4"
+        strokeWidth="1.8"
         strokeLinecap="round"
       />
-      <path d="M4.2 3.6v4.6h4.6" fill="none" stroke="var(--primary)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="12" cy="12" r="2.6" fill="var(--text)" />
+      <path
+        d="M5 10.8h11v3.9a4.6 4.6 0 0 1-4.6 4.6H9.6A4.6 4.6 0 0 1 5 14.7zM16 12.2h1.3a2.1 2.1 0 0 1 0 4.2H16M3.8 21.4h14.4"
+        fill="none"
+        stroke="var(--text)"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   )
 }
@@ -60,8 +66,8 @@ export function StatusBar({ snapshot, alerts, onOpenAlerts }: StatusBarProps) {
   return (
     <header className="flex h-12 shrink-0 items-center gap-3 border-b border-[var(--border)] bg-[var(--background)] px-3">
       <div className="flex items-center gap-2 pr-1">
-        <HotloopMark />
-        <span className="text-[14px] font-semibold tracking-[-0.01em]">Hotloop</span>
+        <QuenteMark />
+        <span className="text-[14px] font-semibold tracking-[-0.01em]">quente</span>
       </div>
 
       <Divider />
