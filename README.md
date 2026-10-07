@@ -3,8 +3,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ORC-Robotics/Hotloop-Coffee-Runtime/actions/workflows/release-desktop.yml">
-    <img src="https://github.com/ORC-Robotics/Hotloop-Coffee-Runtime/actions/workflows/release-desktop.yml/badge.svg" alt="Release Desktop workflow" />
+  <a href="https://github.com/ORC-Robotics/quente-runtime/actions/workflows/release-desktop.yml">
+    <img src="https://github.com/ORC-Robotics/quente-runtime/actions/workflows/release-desktop.yml/badge.svg" alt="Release Desktop workflow" />
   </a>
   <img src="https://img.shields.io/badge/version-v0.3.6-8b5a3c?style=for-the-badge" alt="Version 0.3.6" />
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-3d8bff?style=for-the-badge&labelColor=050608" alt="Windows and Linux" />
@@ -160,5 +160,5 @@ If Electron does not open in development mode:
 ## Branding Note
 
 The application branding, executable name, and release artifacts now use `quente` (formerly Hotloop).
-Internal ids from the Hotloop era stay as they are so existing installs keep their data: the Electron user data folder (`Hotloop`), `~/.hotloop/bridge_connection.json`, the `hotloop.active-page.v1` storage key, the `hl-*` CSS classes and the GitHub repository name.
+Internal ids from the Hotloop era stay as they are so existing installs keep their data: the Electron user data folder (`Hotloop`), `~/.hotloop/bridge_connection.json`, the `hotloop.active-page.v1` storage key, and the `hl-*` CSS classes.
 The bridge binary intentionally keeps the `orion-telemetry-bridge` name so the desktop integration path stays stable.

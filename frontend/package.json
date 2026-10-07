@@ -8,7 +8,7 @@
     "email": "orcrobotics@users.noreply.github.com",
     "url": "https://github.com/ORC-Robotics"
   },
-  "homepage": "https://github.com/ORC-Robotics/Hotloop-Coffee-Runtime",
+  "homepage": "https://github.com/ORC-Robotics/quente-runtime",
   "type": "module",
   "engines": {
     "node": ">=24"

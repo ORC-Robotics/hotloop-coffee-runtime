@@ -4,7 +4,7 @@ Operator console for ORC-Robotics robots: Electron + React 19 + Vite + Tailwind 
 
 The user (team ORC-Robotics) writes in Portuguese — reply in Portuguese. UI copy stays in English.
 
-Name: the app is **quente** (lowercase; formerly Hotloop — "quente see runtime" reads as "can't see runtime"). Hotloop-era internal ids are kept on purpose so installs keep their data: Electron userData folder `Hotloop` (`USER_DATA_DIR_NAME` in `electron/main.cjs`), `~/.hotloop/`, `hotloop.active-page.v1`, `hl-*` classes, repo name.
+Name: the app is **quente** (lowercase; formerly Hotloop — "quente see runtime" reads as "can't see runtime"). Hotloop-era internal ids are kept on purpose so installs keep their data: Electron userData folder `Hotloop` (`USER_DATA_DIR_NAME` in `electron/main.cjs`), `~/.hotloop/`, `hotloop.active-page.v1`, `hl-*` classes. Repo: `ORC-Robotics/quente-runtime` (local folder may still be named Hotloop-Coffee-Runtime).
 
 ## Primary use case (drives every UI decision)
 Fast robot control at the field: enable teleop and drive (WASD/QE or gamepad), or pick an auto routine and run it, while watching live sensor data and odometry. The operator wants a modern ROS2/Foxglove/Shuffleboard feel: readable data, meaningful colour, flexible (not locked) panels, nothing that looks generic or decorative.
@@ -22,7 +22,7 @@ Windows bootstrap: `./run_desktop.ps1 -Install`; Linux: `./run_desktop.sh --inst
 
 Simulation mode (`orion.telemetry-mode.v1 = offline` in localStorage, or the Live/Sim toggle) runs the whole UI without a robot through the same hook contracts (`src/data/simulationDataSource.ts`).
 
-## UI architecture (redesign on branch `redesign/operator-ui`, Oct 2026)
+## UI architecture (Oct 2026 redesign, merged to `main`)
 - `src/app/App.tsx` — shell: `StatusBar` (top) + `NavRail` (left) + page. Pages: `drive`, `map`, `cameras`, `topics`, `health` (`components/shell/appPages.ts`). Last page remembered in localStorage.
 - `components/shell/StatusBar.tsx` — robot state (Disabled/Teleop/Auto), bridge/robot links, battery, alert count, Live/Sim, always-visible **E-Stop** (`dispatchAction('estop')`).
 - `app/pages/DrivePage.tsx` — `components/drive/ControlDock.tsx` (Teleop/Auto, auto routine radio list, Enable/Disable, driver input bars, gyro assist, link) + `HomeWorkspaceShell` (the panel layout).
@@ -52,7 +52,6 @@ Simulation mode (`orion.telemetry-mode.v1 = offline` in localStorage, or the Liv
 - TODO: map overlay chips collide on narrow map panels (`PlanarViewerCanvas.tsx` ~L848/905 — make them wrap/hide by width); ControlDock fixed ~290px could collapse on narrow windows; Sensors chips at 1 column still need scroll at 4x4; gauge is tiny at 2x2. Test harness used: playwright-core + installed Chrome, stress layout injected into `orion.home-workspace.v3`.
 
 ## Status / next steps
-- PR from `redesign/operator-ui` → `main` (title: "Redesign operator console around fast control and live data").
 - Not yet verified: Electron build, and the real robot (teleop enable/drive/disable/E-Stop, auto select + run — routine is applied on selection and again on Run, Map/Drive live odometry + LiDAR).
 - Pre-existing lint errors in `hooks/useSpatialViewModel.ts`, `hooks/useGuidedNavigation.ts`, `hooks/useRemoteDriver.ts` (set-state-in-effect, purity, deps) — being fixed separately; don't mix into UI work.
 - Unused legacy panels still in tree: `ControlModePanel`, `PerceptionPanel`, `ReactiveStatePanel` (old styling). Candidates for Health page (restyled) or deletion.
